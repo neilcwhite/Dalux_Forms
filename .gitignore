@@ -1,0 +1,39 @@
+﻿# Python
+backend/venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/*.pyc
+backend/.pytest_cache/
+
+# Environment & secrets
+.env
+.env.local
+*.env
+backend/.env
+
+# Node / React (for later)
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Local databases
+backend/data/*.db
+backend/data/*.sqlite
+backend/data/*.sqlite3
+
+# IDE / OS
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+.DS_Store
+
+# Logs
+*.log
+backend/logs/
+
+# Generated reports (local cache)
+backend/reports_cache/
+
+# Allow example env file
+!.env.example
