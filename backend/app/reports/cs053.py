@@ -211,7 +211,7 @@ def build_payload(db: Session, form_id: str) -> dict:
             "SELECT taskId, number, subject, created "
             "FROM DLX_2_tasks "
             "WHERE projectId COLLATE utf8mb4_unicode_ci = :pid COLLATE utf8mb4_unicode_ci "
-            "AND usage = 'SafetyIssue' AND DATE(created) = :d"
+            "AND `usage` = 'SafetyIssue' AND DATE(created) = :d"
         ), {"pid": project_id, "d": insp_date_str}).mappings().all()
 
     findings: list[dict] = []

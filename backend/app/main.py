@@ -1,9 +1,12 @@
 """FastAPI application entry point."""
+import io
+import zipfile
 from datetime import date, datetime
 from typing import Optional
 
 from fastapi import FastAPI, Depends, Query, HTTPException
 from fastapi.responses import Response
+from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -237,5 +240,70 @@ def download_form(
         headers={
             "Content-Disposition": f'attachment; filename="{filename}"',
             "X-Report-Size": str(size_bytes),
+        },
+    )
+
+
+class BulkDownloadRequest(BaseModel):
+    form_ids: list[str]
+
+
+@app.post("/api/forms/bulk-download")
+def bulk_download(
+    req: BulkDownloadRequest,
+    db: Session = Depends(get_db),
+    app_db: Session = Depends(get_app_db),
+):
+    if not req.form_ids:
+        raise HTTPException(status_code=400, detail="form_ids must not be empty")
+    if len(req.form_ids) > 100:
+        raise HTTPException(status_code=400, detail="Maximum 100 forms per bulk download")
+
+    buf = io.BytesIO()
+    included: list[str] = []
+    failures: list[dict] = []
+
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for fid in req.form_ids:
+            try:
+                pdf_bytes, filename, size_bytes = generate_report(db, fid)
+            except ReportError as e:
+                failures.append({"form_id": fid, "error": str(e)})
+                continue
+            except Exception as e:
+                failures.append({"form_id": fid, "error": f"generation failed: {e}"})
+                continue
+
+            zf.writestr(filename, pdf_bytes)
+
+            form_modified = db.execute(text(
+                "SELECT modified FROM DLX_2_forms WHERE formId = :fid"
+            ), {"fid": fid}).scalar()
+            app_db.add(Download(
+                form_id=fid,
+                form_modified_at=form_modified,
+                trigger_type="bulk",
+                file_size_bytes=size_bytes,
+            ))
+            included.append(fid)
+
+    if not included:
+        raise HTTPException(
+            status_code=500,
+            detail={"message": "No forms could be generated", "failures": failures},
+        )
+
+    app_db.commit()
+
+    zip_bytes = buf.getvalue()
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    zip_name = f"forms_{ts}_{len(included)}.zip"
+    return Response(
+        content=zip_bytes,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{zip_name}"',
+            "X-Included-Count": str(len(included)),
+            "X-Failed-Count": str(len(failures)),
         },
     )

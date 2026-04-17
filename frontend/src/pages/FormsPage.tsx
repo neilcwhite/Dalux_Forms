@@ -1,9 +1,13 @@
+import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchSites, fetchFormTypes, fetchForms, type FormRow } from "../api";
 
 export default function FormsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const queryClient = useQueryClient();
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   // Read filters from URL query params
   const siteIds = searchParams.getAll("site");
@@ -61,6 +65,66 @@ export default function FormsPage() {
   });
 
   const anyFilterActive = siteIds.length > 0 || formType || dateFrom || dateTo || status || notDownloaded;
+
+  const downloadableForms = (formsQuery.data?.forms ?? []).filter(f => f.has_custom_report);
+  const allVisibleSelected =
+    downloadableForms.length > 0 && downloadableForms.every(f => selected.has(f.formId));
+
+  function toggleRow(formId: string) {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(formId)) next.delete(formId);
+      else next.add(formId);
+      return next;
+    });
+  }
+
+  function toggleAllVisible() {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (allVisibleSelected) {
+        downloadableForms.forEach(f => next.delete(f.formId));
+      } else {
+        downloadableForms.forEach(f => next.add(f.formId));
+      }
+      return next;
+    });
+  }
+
+  async function downloadSelectedAsZip() {
+    if (selected.size === 0) return;
+    setBulkBusy(true);
+    try {
+      const resp = await fetch("/api/forms/bulk-download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ form_ids: Array.from(selected) }),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+        alert(`Bulk download failed: ${typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)}`);
+        return;
+      }
+      const blob = await resp.blob();
+      const disposition = resp.headers.get("Content-Disposition") ?? "";
+      const match = /filename="([^"]+)"/.exec(disposition);
+      const filename = match?.[1] ?? "forms.zip";
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      const failed = Number(resp.headers.get("X-Failed-Count") ?? "0");
+      if (failed > 0) alert(`${failed} form(s) could not be generated and were skipped.`);
+      setSelected(new Set());
+      queryClient.invalidateQueries({ queryKey: ["forms"] });
+    } catch (e) {
+      alert(`Bulk download error: ${(e as Error).message}`);
+    } finally {
+      setBulkBusy(false);
+    }
+  }
 
   return (
     <div>
@@ -201,6 +265,16 @@ export default function FormsPage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr className="text-left text-xs uppercase tracking-wide text-gray-600">
+                  <th className="px-3 py-2 w-8">
+                    <input
+                      type="checkbox"
+                      checked={allVisibleSelected}
+                      onChange={toggleAllVisible}
+                      disabled={downloadableForms.length === 0}
+                      title="Select all downloadable forms shown"
+                      className="w-4 h-4"
+                    />
+                  </th>
                   <th className="px-3 py-2 font-semibold">Form</th>
                   <th className="px-3 py-2 font-semibold">Site</th>
                   <th className="px-3 py-2 font-semibold">Created</th>
@@ -213,11 +287,16 @@ export default function FormsPage() {
               </thead>
               <tbody>
                 {formsQuery.data.forms.map(f => (
-                  <FormRowView key={f.formId} form={f} />
+                  <FormRowView
+                    key={f.formId}
+                    form={f}
+                    isSelected={selected.has(f.formId)}
+                    onToggle={() => toggleRow(f.formId)}
+                  />
                 ))}
                 {formsQuery.data.forms.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="px-3 py-8 text-center text-gray-500">
+                    <td colSpan={9} className="px-3 py-8 text-center text-gray-500">
                       No forms match these filters.
                     </td>
                   </tr>
@@ -227,11 +306,42 @@ export default function FormsPage() {
           </div>
         </section>
       )}
+
+      {selected.size > 0 && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-white border border-gray-300 shadow-lg rounded-full px-5 py-2.5 flex items-center gap-4 z-50">
+          <span className="text-sm font-medium">
+            {selected.size} selected
+          </span>
+          <button
+            onClick={() => setSelected(new Set())}
+            className="text-xs text-gray-600 hover:underline"
+            disabled={bulkBusy}
+          >
+            Clear
+          </button>
+          <button
+            onClick={downloadSelectedAsZip}
+            disabled={bulkBusy}
+            className="px-4 py-1.5 text-sm font-semibold bg-[#233E99] text-white rounded-full hover:bg-[#1a2f7a] disabled:opacity-60"
+          >
+            {bulkBusy ? "Zipping…" : `Download ${selected.size} as ZIP`}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
-function FormRowView({ form }: { form: FormRow }) {
+function FormRowView({
+  form,
+  isSelected,
+  onToggle,
+}: {
+  form: FormRow;
+  isSelected: boolean;
+  onToggle: () => void;
+}) {
+  const queryClient = useQueryClient();
   const created = new Date(form.created).toLocaleDateString("en-GB");
   const modified = new Date(form.modified).toLocaleDateString("en-GB");
   const lastDownload = form.last_downloaded_at
@@ -256,14 +366,24 @@ function FormRowView({ form }: { form: FormRow }) {
       a.download = filename;
       a.click();
       URL.revokeObjectURL(url);
-      window.location.reload();
+      queryClient.invalidateQueries({ queryKey: ["forms"] });
     } catch (e) {
       alert(`Download error: ${(e as Error).message}`);
     }
   }
 
   return (
-    <tr className="border-b border-gray-100 last:border-b-0 hover:bg-gray-50">
+    <tr className={`border-b border-gray-100 last:border-b-0 hover:bg-gray-50 ${isSelected ? "bg-[#EEF1FA]" : ""}`}>
+      <td className="px-3 py-2">
+        {form.has_custom_report ? (
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={onToggle}
+            className="w-4 h-4"
+          />
+        ) : null}
+      </td>
       <td className="px-3 py-2">
         <div className="font-medium">{form.number ?? form.formId}</div>
         <div className="text-xs text-gray-500">{form.template_name}</div>
