@@ -1,10 +1,16 @@
-"""CS053 Weekly Safety Inspection — report builder."""
+"""CS053 Weekly Safety Inspection — report builder.
+
+Conformant with Spencer Dalux Report Design System v1.0
+(see docs/template_design_system_v1.md and
+backend/app/reports/templates/_spencer_design_system.css.j2).
+"""
 from __future__ import annotations
 import base64
 import re
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
+from zoneinfo import ZoneInfo
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -38,6 +44,52 @@ _env = Environment(
     loader=FileSystemLoader(str(TEMPLATE_DIR)),
     autoescape=select_autoescape(["html", "xml"]),
 )
+
+
+def _size_class(text_val, mono: bool = False) -> str:
+    """Auto-shrink CSS class tier per design system §Typography.
+    Thresholds calibrated for A4 with 20/60/20 id-grid and 10.5pt base."""
+    if not text_val:
+        return ""
+    n = len(str(text_val))
+    if mono:
+        if n > 28:
+            return "len-xl"
+        if n > 20:
+            return "len-lg"
+        if n > 14:
+            return "len-md"
+    else:
+        if n > 55:
+            return "len-xl"
+        if n > 40:
+            return "len-lg"
+        if n > 28:
+            return "len-md"
+    return ""
+
+
+_env.filters["size_class"] = _size_class
+
+
+def _to_london(utc_dt: Optional[datetime]) -> tuple[Optional[datetime], str]:
+    """Convert naive-UTC (or aware) datetime to Europe/London.
+    Returns (local_dt, 'GMT'|'BST'). Design system §Timezone handling."""
+    if utc_dt is None:
+        return None, ""
+    if utc_dt.tzinfo is None:
+        utc_dt = utc_dt.replace(tzinfo=ZoneInfo("UTC"))
+    london = utc_dt.astimezone(ZoneInfo("Europe/London"))
+    return london, london.tzname() or "GMT"
+
+
+def _status_chip(status: Optional[str]) -> tuple[str, str]:
+    """CS053 has no validity window, so 'open' never transitions to 'expired'.
+    Two-state: closed (green) / open (amber)."""
+    s = (status or "").lower()
+    if s == "closed":
+        return "Closed", "closed"
+    return "Open", "open"
 
 
 def _title_case(s: str) -> str:
@@ -112,21 +164,29 @@ def build_payload(db: Session, form_id: str) -> dict:
     project_id = form["projectId"]
 
     def resolve_user(uid: Optional[str]) -> dict:
+        """Resolve a user to display name + email, scoped by (userId, projectId)
+        composite PK per design system §Data access rules."""
         if not uid:
-            return {"initials": "??", "fullName": ""}
+            return {"initials": "??", "fullName": "", "email": ""}
         row = db.execute(text(
-            "SELECT firstName, lastName FROM DLX_2_users "
+            "SELECT name, firstName, lastName, email FROM DLX_2_users "
             "WHERE userId COLLATE utf8mb4_unicode_ci = :uid COLLATE utf8mb4_unicode_ci "
+            "AND projectId COLLATE utf8mb4_unicode_ci = :pid COLLATE utf8mb4_unicode_ci "
             "LIMIT 1"
-        ), {"uid": uid}).mappings().first()
+        ), {"uid": uid, "pid": project_id}).mappings().first()
         if not row:
-            return {"initials": "??", "fullName": uid[:10]}
-        fn = (row["firstName"] or "").strip()
-        ln = (row["lastName"] or "").strip()
-        initials = ((fn[:1] + ln[:1]) or "??").upper()
+            return {"initials": "??", "fullName": uid[:10], "email": ""}
+        name = (row["name"] or "").strip()
+        if not name:
+            fn = (row["firstName"] or "").strip()
+            ln = (row["lastName"] or "").strip()
+            name = _title_case(f"{fn} {ln}".strip())
+        parts = name.split()
+        initials = ((parts[0][:1] + parts[-1][:1]) if len(parts) >= 2 else name[:2]).upper() or "??"
         return {
             "initials": initials,
-            "fullName": _title_case(f"{fn} {ln}".strip()),
+            "fullName": name,
+            "email": (row["email"] or "").strip(),
         }
 
     created_by = resolve_user(form["createdBy_userId"])
@@ -373,10 +433,25 @@ def build_payload(db: Session, form_id: str) -> dict:
     logo_data_uri = _find_asset(STATIC_DIR, ["Spencer Group logo", "Spencer_Group_logo", "spencer_logo"])
     qr_data_uri = _find_asset(STATIC_DIR, ["CS053_"])
 
+    # Design system §Status chip: closed (green) / open (amber).
+    status_label, status_class = _status_chip(form["status"])
+
+    # Design system §Provenance: created/modified dates in Europe/London,
+    # formatted "dd Mmm yyyy" to match the v0.11 reference implementation.
+    created_local, _ = _to_london(form["created"])
+    modified_local, _ = _to_london(form["modified"])
+    created_display = created_local.strftime("%d %b %Y") if created_local else ""
+    modified_display = modified_local.strftime("%d %b %Y") if modified_local else ""
+
+    # Design system §Footer: modifier email preferred, fallback to creator's.
+    footer_email = modified_by.get("email") or created_by.get("email") or ""
+
     return {
         "form_id": form["formId"],
         "form_number": form["number"],
         "status": form["status"],
+        "status_label": status_label,
+        "status_class": status_class,
         "site_name": site_name, "project_num": project_num,
         "insp_date": _uk_date(insp_date),
         "last_insp": _uk_date(last_insp),
@@ -396,9 +471,65 @@ def build_payload(db: Session, form_id: str) -> dict:
         "total_photos": len(all_photos),
         "logo_data_uri": logo_data_uri,
         "qr_data_uri": qr_data_uri,
+        # Design system additions
+        "creator_name": created_by["fullName"] or "(unknown)",
+        "modifier_name": modified_by["fullName"] or "(unknown)",
+        "created_display": created_display,
+        "modified_display": modified_display,
+        "footer_email": footer_email,
     }
 
 
 def render_html(payload: dict) -> str:
     template = _env.get_template("cs053.html.j2")
     return template.render(**payload)
+
+
+def _sanitise_site(s: Optional[str]) -> str:
+    """Strip non-alphanumerics per design system §Filename pattern."""
+    return re.sub(r"[^A-Za-z0-9]", "", s or "")
+
+
+def build_filename(db: Session, form_meta) -> str:
+    """Filename per design system §Filename pattern:
+        {yyyy-mm-dd}_CS053_{SiteNameSanitised}_{formId}.pdf
+
+    Date source for CS053: the inspection date UDF (`Date`), falling back
+    to form.created. Site follows the checklist convention —
+    sheq_sites.site_name first, DLX_2_projects.projectName as fallback.
+    """
+    form_id = form_meta["formId"]
+
+    # Inspection date (the 'Date' UDF; value_date)
+    row = db.execute(text("""
+        SELECT value_date FROM DLX_2_form_udfs
+        WHERE formId = :fid AND field_name = 'Date'
+        LIMIT 1
+    """), {"fid": form_id}).mappings().first()
+    insp_dt = row["value_date"] if row else None
+
+    # Fallback to form.created (Europe/London date)
+    if insp_dt is None:
+        created = form_meta.get("created")
+        local, _ = _to_london(created)
+        date_str = local.strftime("%Y-%m-%d") if local else "unknown-date"
+    else:
+        # value_date is a bare date — no timezone conversion needed
+        date_str = str(insp_dt)[:10]
+
+    # Site name — sheq-first (CS053 checklist convention)
+    row = db.execute(text("""
+        SELECT s.site_name AS sheq_name, p.projectName
+        FROM DLX_2_forms f
+        LEFT JOIN sheq_sites s
+          ON f.projectId COLLATE utf8mb4_unicode_ci = s.dalux_id COLLATE utf8mb4_unicode_ci
+        LEFT JOIN DLX_2_projects p
+          ON f.projectId COLLATE utf8mb4_unicode_ci = p.projectId COLLATE utf8mb4_unicode_ci
+        WHERE f.formId = :fid
+    """), {"fid": form_id}).mappings().first()
+    site_raw = None
+    if row:
+        site_raw = row["sheq_name"] or row["projectName"]
+    site_clean = _sanitise_site(site_raw) or "site"
+
+    return f"{date_str}_CS053_{site_clean}_{form_id}.pdf"
