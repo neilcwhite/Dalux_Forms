@@ -6,14 +6,13 @@ export default function FormsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Read filters from URL query params
-  const siteIds = searchParams.getAll("site");  // multi-value
+  const siteIds = searchParams.getAll("site");
   const formType = searchParams.get("form_type") ?? "";
   const dateFrom = searchParams.get("date_from") ?? "";
   const dateTo = searchParams.get("date_to") ?? "";
   const status = searchParams.get("status") ?? "";
   const notDownloaded = searchParams.get("new_only") === "1";
 
-  // Helper to update a single filter
   function setFilter(key: string, value: string | null) {
     const next = new URLSearchParams(searchParams);
     if (!value) next.delete(key);
@@ -21,7 +20,6 @@ export default function FormsPage() {
     setSearchParams(next);
   }
 
-  // Helper to toggle site selection (multi-select)
   function toggleSite(siteId: string) {
     const next = new URLSearchParams(searchParams);
     const current = next.getAll("site");
@@ -39,7 +37,6 @@ export default function FormsPage() {
     setSearchParams(new URLSearchParams());
   }
 
-  // --- Data queries ---
   const sitesQuery = useQuery({
     queryKey: ["sites"],
     queryFn: fetchSites,
@@ -67,7 +64,6 @@ export default function FormsPage() {
 
   return (
     <div>
-      {/* Filter bar */}
       <section className="bg-white rounded border border-gray-200 p-4 mb-6">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-base font-semibold">Filters</h2>
@@ -82,7 +78,6 @@ export default function FormsPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Form type */}
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wide text-gray-600 mb-1">
               Form type
@@ -108,7 +103,6 @@ export default function FormsPage() {
             </select>
           </div>
 
-          {/* Date range */}
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wide text-gray-600 mb-1">
               Created from
@@ -132,7 +126,6 @@ export default function FormsPage() {
             />
           </div>
 
-          {/* Status */}
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wide text-gray-600 mb-1">
               Status
@@ -148,7 +141,6 @@ export default function FormsPage() {
             </select>
           </div>
 
-          {/* New-only toggle */}
           <div className="flex items-end">
             <label className="inline-flex items-center gap-2 text-sm">
               <input
@@ -162,7 +154,6 @@ export default function FormsPage() {
           </div>
         </div>
 
-        {/* Site selector as chip list */}
         <div className="mt-4 pt-4 border-t border-gray-100">
           <label className="block text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">
             Sites <span className="text-gray-500 font-normal">
@@ -190,7 +181,6 @@ export default function FormsPage() {
         </div>
       </section>
 
-      {/* Results */}
       {formsQuery.isLoading && <p className="text-gray-600">Loading forms…</p>}
       {formsQuery.error && (
         <p className="text-red-700">Error loading forms: {(formsQuery.error as Error).message}</p>
@@ -248,6 +238,30 @@ function FormRowView({ form }: { form: FormRow }) {
     ? new Date(form.last_downloaded_at).toLocaleDateString("en-GB")
     : null;
 
+  async function handleDownload() {
+    try {
+      const resp = await fetch(`/api/forms/${form.formId}/download`);
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+        alert(`Download failed: ${err.detail ?? resp.statusText}`);
+        return;
+      }
+      const blob = await resp.blob();
+      const disposition = resp.headers.get("Content-Disposition") ?? "";
+      const match = /filename="([^"]+)"/.exec(disposition);
+      const filename = match?.[1] ?? `${form.formId}.pdf`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      window.location.reload();
+    } catch (e) {
+      alert(`Download error: ${(e as Error).message}`);
+    }
+  }
+
   return (
     <tr className="border-b border-gray-100 last:border-b-0 hover:bg-gray-50">
       <td className="px-3 py-2">
@@ -294,7 +308,7 @@ function FormRowView({ form }: { form: FormRow }) {
       <td className="px-3 py-2 text-right">
         {form.has_custom_report ? (
           <button
-            onClick={() => alert(`Download stub — Session 5 will wire this up.\n\nForm: ${form.formId}`)}
+            onClick={handleDownload}
             className="px-3 py-1 text-xs font-semibold bg-[#233E99] text-white rounded hover:bg-[#1a2f7a]"
           >
             Download PDF

@@ -1,8 +1,4 @@
-"""CS053 Weekly Safety Inspection — report builder.
-
-Queries DLX_2_form_udfs to pull item states (Green/Red/N/A), linked CARs from
-DLX_2_tasks, and attachments. Renders via Jinja2 using cs053.html.j2.
-"""
+"""CS053 Weekly Safety Inspection — report builder."""
 from __future__ import annotations
 import base64
 import re
@@ -41,7 +37,7 @@ def _title_case(s: str) -> str:
     return " ".join(out)
 
 
-def _uk_date(iso: Optional[str]) -> str:
+def _uk_date(iso) -> str:
     if not iso:
         return ""
     if isinstance(iso, datetime):
@@ -58,22 +54,36 @@ def _data_uri(path: Path) -> Optional[str]:
         return None
     data = path.read_bytes()
     b64 = base64.b64encode(data).decode()
-    ext = path.suffix.lstrip(".") or "png"
+    ext = path.suffix.lstrip(".").lower() or "png"
+    if ext == "jpg":
+        ext = "jpeg"
     return f"data:image/{ext};base64,{b64}"
 
 
+def _find_asset(folder: Path, prefixes: list[str]) -> Optional[str]:
+    if not folder.exists():
+        return None
+    for prefix in prefixes:
+        matches = [
+            f for f in folder.iterdir()
+            if f.is_file()
+            and f.name.startswith(prefix)
+            and f.suffix.lower() in (".png", ".jpg", ".jpeg")
+        ]
+        if matches:
+            return _data_uri(matches[0])
+    return None
+
+
 def build_payload(db: Session, form_id: str) -> dict:
-    """Query the DB and build everything the template needs."""
     from app.reports.service import fetch_photo_to_cache
 
-    # Form header
-    form = db.execute(text("""
-        SELECT f.formId, f.projectId, f.type, f.number, f.template_name,
-               f.status, f.created, f.modified,
-               f.createdBy_userId, f.modifiedBy_userId
-        FROM DLX_2_forms f
-        WHERE f.formId = :fid
-    """), {"fid": form_id}).mappings().first()
+    form = db.execute(text(
+        "SELECT f.formId, f.projectId, f.type, f.number, f.template_name, "
+        "f.status, f.created, f.modified, "
+        "f.createdBy_userId, f.modifiedBy_userId "
+        "FROM DLX_2_forms f WHERE f.formId = :fid"
+    ), {"fid": form_id}).mappings().first()
     if not form:
         raise ValueError(f"Form {form_id} not found")
 
@@ -82,11 +92,11 @@ def build_payload(db: Session, form_id: str) -> dict:
     def resolve_user(uid: Optional[str]) -> dict:
         if not uid:
             return {"initials": "??", "fullName": ""}
-        row = db.execute(text("""
-            SELECT firstName, lastName FROM DLX_2_users
-            WHERE userId COLLATE utf8mb4_unicode_ci = :uid COLLATE utf8mb4_unicode_ci
-            LIMIT 1
-        """), {"uid": uid}).mappings().first()
+        row = db.execute(text(
+            "SELECT firstName, lastName FROM DLX_2_users "
+            "WHERE userId COLLATE utf8mb4_unicode_ci = :uid COLLATE utf8mb4_unicode_ci "
+            "LIMIT 1"
+        ), {"uid": uid}).mappings().first()
         if not row:
             return {"initials": "??", "fullName": uid[:10]}
         fn = (row["firstName"] or "").strip()
@@ -101,12 +111,11 @@ def build_payload(db: Session, form_id: str) -> dict:
     modified_by = resolve_user(form["modifiedBy_userId"])
     creator_differs = form["createdBy_userId"] != form["modifiedBy_userId"]
 
-    # Meta fields
-    meta_rows = db.execute(text("""
-        SELECT field_name, value_text, value_date, value_relation_userId,
-               value_relation_companyId, value_reference_value
-        FROM DLX_2_form_udfs WHERE formId = :fid
-    """), {"fid": form_id}).mappings().all()
+    meta_rows = db.execute(text(
+        "SELECT field_name, value_text, value_date, value_relation_userId, "
+        "value_relation_companyId, value_reference_value "
+        "FROM DLX_2_form_udfs WHERE formId = :fid"
+    ), {"fid": form_id}).mappings().all()
 
     site_name = ""
     project_num = ""
@@ -139,21 +148,20 @@ def build_payload(db: Session, form_id: str) -> dict:
     accompanied_names = [resolve_user(u)["fullName"] for u in accompanied_uids if u]
     company_names = []
     for cid in company_ids:
-        row = db.execute(text("""
-            SELECT name FROM DLX_2_companies
-            WHERE companyId COLLATE utf8mb4_unicode_ci = :cid COLLATE utf8mb4_unicode_ci
-            LIMIT 1
-        """), {"cid": cid}).mappings().first()
+        row = db.execute(text(
+            "SELECT name FROM DLX_2_companies "
+            "WHERE companyId COLLATE utf8mb4_unicode_ci = :cid COLLATE utf8mb4_unicode_ci "
+            "LIMIT 1"
+        ), {"cid": cid}).mappings().first()
         if row and row["name"]:
             company_names.append(row["name"])
 
-    # Categories + items (from UDFs where value_text in Green/Red/N/A)
-    state_rows = db.execute(text("""
-        SELECT field_name, value_text, field_key
-        FROM DLX_2_form_udfs
-        WHERE formId = :fid AND value_text IN ('Green', 'Red', 'N/A')
-        ORDER BY field_name
-    """), {"fid": form_id}).mappings().all()
+    state_rows = db.execute(text(
+        "SELECT field_name, value_text, field_key "
+        "FROM DLX_2_form_udfs "
+        "WHERE formId = :fid AND value_text IN ('Green', 'Red', 'N/A') "
+        "ORDER BY field_name"
+    ), {"fid": form_id}).mappings().all()
 
     categories: dict[int, dict] = {}
     items_by_name: dict[str, dict] = {}
@@ -185,56 +193,54 @@ def build_payload(db: Session, form_id: str) -> dict:
         cat["green"] = sum(1 for i in cat["items"] if i["state"] == "Green")
         cat["red"] = sum(1 for i in cat["items"] if i["state"] == "Red")
         cat["na"] = sum(1 for i in cat["items"] if i["state"] == "N/A")
-        cat["blank"] = 0  # all items here have states by WHERE clause
+        cat["blank"] = 0
 
-    # Attachments → items via udf_key ↔ field_key
-    att_rows = db.execute(text("""
-        SELECT a.attachmentId, a.fileName, a.fileDownloadUrl, a.udf_key, a.created,
-               u.field_name
-        FROM DLX_2_form_attachments a
-        LEFT JOIN DLX_2_form_udfs u
-          ON a.udf_key = u.field_key AND a.formId = u.formId
-        WHERE a.formId = :fid
-    """), {"fid": form_id}).mappings().all()
+    att_rows = db.execute(text(
+        "SELECT a.attachmentId, a.fileName, a.fileDownloadUrl, a.udf_key, a.created, "
+        "u.field_name "
+        "FROM DLX_2_form_attachments a "
+        "LEFT JOIN DLX_2_form_udfs u "
+        "ON a.udf_key = u.field_key AND a.formId = u.formId "
+        "WHERE a.formId = :fid"
+    ), {"fid": form_id}).mappings().all()
 
-    # Linked safety issues (same project + same inspection date)
     insp_date_str = insp_date or (form["created"].strftime("%Y-%m-%d") if form["created"] else None)
     tasks = []
     if insp_date_str:
-        tasks = db.execute(text("""
-            SELECT taskId, number, subject, created
-            FROM DLX_2_tasks
-            WHERE projectId COLLATE utf8mb4_unicode_ci = :pid COLLATE utf8mb4_unicode_ci
-              AND usage = 'SafetyIssue' AND DATE(created) = :d
-        """), {"pid": project_id, "d": insp_date_str}).mappings().all()
+        tasks = db.execute(text(
+            "SELECT taskId, number, subject, created "
+            "FROM DLX_2_tasks "
+            "WHERE projectId COLLATE utf8mb4_unicode_ci = :pid COLLATE utf8mb4_unicode_ci "
+            "AND usage = 'SafetyIssue' AND DATE(created) = :d"
+        ), {"pid": project_id, "d": insp_date_str}).mappings().all()
 
     findings: list[dict] = []
     evidence_by_finding: dict[str, list[int]] = {}
     for t in tasks:
-        tudfs = db.execute(text("""
-            SELECT field_name, value_reference_value, value_text
-            FROM DLX_2_task_udfs WHERE taskId = :tid
-        """), {"tid": t["taskId"]}).mappings().all()
+        tudfs = db.execute(text(
+            "SELECT field_name, value_reference_value, value_text "
+            "FROM DLX_2_task_udfs WHERE taskId = :tid"
+        ), {"tid": t["taskId"]}).mappings().all()
         tudf_map = {r["field_name"]: r["value_reference_value"] or r["value_text"] for r in tudfs}
 
-        ch = db.execute(text("""
-            SELECT fields_currentResponsible_userId
-            FROM DLX_2_task_changes WHERE taskId = :tid AND action = 'assign'
-            ORDER BY timestamp LIMIT 1
-        """), {"tid": t["taskId"]}).mappings().first()
+        ch = db.execute(text(
+            "SELECT fields_currentResponsible_userId "
+            "FROM DLX_2_task_changes WHERE taskId = :tid AND action = 'assign' "
+            "ORDER BY timestamp LIMIT 1"
+        ), {"tid": t["taskId"]}).mappings().first()
         assignee = resolve_user(ch["fields_currentResponsible_userId"])["fullName"] if ch else ""
 
-        closed = db.execute(text("""
-            SELECT timestamp FROM DLX_2_task_changes
-            WHERE taskId = :tid AND fields_status = 'closed'
-            ORDER BY timestamp DESC LIMIT 1
-        """), {"tid": t["taskId"]}).mappings().first()
+        closed = db.execute(text(
+            "SELECT timestamp FROM DLX_2_task_changes "
+            "WHERE taskId = :tid AND fields_status = 'closed' "
+            "ORDER BY timestamp DESC LIMIT 1"
+        ), {"tid": t["taskId"]}).mappings().first()
         closed_date = _uk_date(str(closed["timestamp"])[:10]) if closed else ""
 
-        evidence = db.execute(text("""
-            SELECT attachmentId, fileName, fileDownloadUrl, created
-            FROM DLX_2_task_attachments WHERE taskId = :tid
-        """), {"tid": t["taskId"]}).mappings().all()
+        evidence = db.execute(text(
+            "SELECT attachmentId, fileName, fileDownloadUrl, created "
+            "FROM DLX_2_task_attachments WHERE taskId = :tid"
+        ), {"tid": t["taskId"]}).mappings().all()
 
         f = {
             "number": t["number"], "subject": t["subject"],
@@ -245,11 +251,9 @@ def build_payload(db: Session, form_id: str) -> dict:
         }
         findings.append(f)
         evidence_by_finding.setdefault(f["number"], [])
-        # Attach finding to matching item
         if f["item_ref"] in items_by_name:
             items_by_name[f["item_ref"]]["findings"].append(f)
 
-    # Global photo numbering
     photo_counter = 0
     for cat in sorted(categories.values(), key=lambda c: c["num"]):
         for item in cat["items"]:
@@ -272,7 +276,6 @@ def build_payload(db: Session, form_id: str) -> dict:
             evidence_by_finding[f["number"]].append(photo_counter)
         f["evidence_nos"] = evidence_by_finding.get(f["number"], [])
 
-    # Build all_photos list for appendix
     all_photos = []
     for cat in sorted(categories.values(), key=lambda c: c["num"]):
         for item in cat["items"]:
@@ -294,7 +297,6 @@ def build_payload(db: Session, form_id: str) -> dict:
                 "local_src": e.get("local_src"),
             })
 
-    # Data quality warnings
     dq_warnings = []
     for cat in categories.values():
         has_red = any(i["state"] == "Red" for i in cat["items"])
@@ -308,9 +310,8 @@ def build_payload(db: Session, form_id: str) -> dict:
     total_red = sum(c["red"] for c in categories.values())
     total_na = sum(c["na"] for c in categories.values())
 
-    # Assets
-    logo_data_uri = _data_uri(STATIC_DIR / "spencer_logo.png")
-    qr_data_uri = _data_uri(STATIC_DIR / "qr_cs053.png")
+    logo_data_uri = _find_asset(STATIC_DIR, ["Spencer Group logo", "Spencer_Group_logo", "spencer_logo"])
+    qr_data_uri = _find_asset(STATIC_DIR, ["CS053_"])
 
     return {
         "form_id": form["formId"],

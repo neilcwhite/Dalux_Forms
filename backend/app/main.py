@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db, get_app_db, app_engine, AppBase
-from app import models  # noqa: F401 - ensures models are registered before create_all
+from app import models  # noqa: F401
 from app.models import Download
 from app.reports.service import generate_report, ReportError
 
@@ -21,12 +21,9 @@ app = FastAPI(
 
 @app.on_event("startup")
 def startup_init_app_db():
-    """Create SQLite tables on first startup if they don't exist."""
     AppBase.metadata.create_all(bind=app_engine)
 
 
-# Templates with a custom report layout built. Update as new form templates
-# are designed. Everything else: the UI greys out the download button.
 TEMPLATES_WITH_CUSTOM_REPORT = {
     "Weekly Safety inspection",  # CS053
 }
@@ -100,19 +97,14 @@ def list_form_types(db: Session = Depends(get_db)):
 def list_forms(
     db: Session = Depends(get_db),
     app_db: Session = Depends(get_app_db),
-    site_id: Optional[list[str]] = Query(None, description="Dalux projectId(s), can repeat"),
-    form_type: Optional[str] = Query(None, description="template_name exact match"),
-    date_from: Optional[date] = Query(None, description="Created on or after"),
-    date_to: Optional[date] = Query(None, description="Created on or before"),
-    status: Optional[str] = Query(None, description="Dalux form status e.g. closed, open"),
-    not_downloaded_only: bool = Query(False, description="Hide forms already downloaded"),
+    site_id: Optional[list[str]] = Query(None),
+    form_type: Optional[str] = Query(None),
+    date_from: Optional[date] = Query(None),
+    date_to: Optional[date] = Query(None),
+    status: Optional[str] = Query(None),
+    not_downloaded_only: bool = Query(False),
     limit: int = Query(500, le=2000),
 ):
-    """
-    Main listing endpoint for the UI.
-    All joins use explicit COLLATE utf8mb4_unicode_ci to handle the mismatch
-    between DLX_2_* tables and sheq_sites. See scope doc tech debt #1.
-    """
     where = ["(f.deleted = 0 OR f.deleted IS NULL)"]
     params = {}
 
@@ -136,17 +128,9 @@ def list_forms(
 
     query = text(f"""
         SELECT
-            f.formId,
-            f.projectId,
-            f.type,
-            f.number,
-            f.template_name,
-            f.status,
-            f.created,
-            f.modified,
-            f.createdBy_userId,
-            u.firstName AS creator_first,
-            u.lastName AS creator_last,
+            f.formId, f.projectId, f.type, f.number, f.template_name,
+            f.status, f.created, f.modified, f.createdBy_userId,
+            u.firstName AS creator_first, u.lastName AS creator_last,
             COALESCE(s.site_name, p.projectName) AS site_display,
             s.sos_number,
             CASE WHEN s.id IS NOT NULL THEN 1 ELSE 0 END AS is_mapped
@@ -165,7 +149,6 @@ def list_forms(
     params["limit"] = limit
     rows = db.execute(query, params).mappings().all()
 
-    # Enrich with local download state
     form_ids = [r["formId"] for r in rows]
     downloads_by_form = {}
     if form_ids:
@@ -211,12 +194,10 @@ def list_forms(
         "count": len(results),
         "limit": limit,
         "filters": {
-            "site_id": site_id,
-            "form_type": form_type,
+            "site_id": site_id, "form_type": form_type,
             "date_from": str(date_from) if date_from else None,
             "date_to": str(date_to) if date_to else None,
-            "status": status,
-            "not_downloaded_only": not_downloaded_only,
+            "status": status, "not_downloaded_only": not_downloaded_only,
         },
         "forms": results,
     }
@@ -228,23 +209,19 @@ def download_form(
     db: Session = Depends(get_db),
     app_db: Session = Depends(get_app_db),
 ):
-    """Generate (or serve from cache) a PDF and log the download."""
     try:
         pdf_bytes, filename, size_bytes = generate_report(db, form_id)
     except ReportError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        # Log unexpected errors so we can see them in uvicorn output
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Report generation failed: {e}")
 
-    # Look up form.modified for redownload tracking
     form_modified = db.execute(text(
         "SELECT modified FROM DLX_2_forms WHERE formId = :fid"
     ), {"fid": form_id}).scalar()
 
-    # Log to SQLite
     dl = Download(
         form_id=form_id,
         form_modified_at=form_modified,
