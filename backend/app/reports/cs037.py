@@ -1,13 +1,13 @@
 """CS037 Permit to Undertake Hot Work — report builder.
 
-Family B template (permit). Mirrors the cs053 module structure for service.py
-integration: exports `build_payload(db, form_id)`, `render_html(payload)`, and
-the optional `build_filename(db, form_meta)` for the CS037-specific filename
-rule (validity-From date + site-sanitised + formId).
+Conformant with Spencer Dalux Report Design System v1.0
+(see docs/template_design_system_v1.md). Permit-family template; exports
+`build_payload(db, form_id)`, `render_html(payload)`, and the optional
+`build_filename(db, form_meta)` for the permit-specific date source
+(validity-From, not form.created).
 
-Site display uses `DLX_2_projects.projectName` rather than `sheq_sites.site_name`
-(deviates from CS053 convention — matches the approved CS037 mock and keeps
-the identifier grid tidy given the SOS number is already shown separately).
+Site / project fields come from the sheq_sites + DLX_2_projects join per
+design system §Data access rules — sheq_sites first, projectName fallback.
 """
 from __future__ import annotations
 
@@ -175,18 +175,18 @@ def _sanitise_site(s: Optional[str]) -> str:
 
 
 def _resolve_user(db: Session, uid: Optional[str], project_id: str) -> dict:
-    """Resolve a user to a display name via DLX_2_users, scoped by (userId, projectId).
-    Prefers `name`; falls back to `firstName + ' ' + lastName`."""
+    """Resolve a user to display name + email via DLX_2_users, scoped by
+    (userId, projectId). Prefers `name`; falls back to `firstName + ' ' + lastName`."""
     if not uid:
-        return {"name": "", "initials": "??"}
+        return {"name": "", "initials": "??", "email": ""}
     row = db.execute(text(
-        "SELECT name, firstName, lastName FROM DLX_2_users "
+        "SELECT name, firstName, lastName, email FROM DLX_2_users "
         "WHERE userId COLLATE utf8mb4_unicode_ci = :uid COLLATE utf8mb4_unicode_ci "
         "AND projectId COLLATE utf8mb4_unicode_ci = :pid COLLATE utf8mb4_unicode_ci "
         "LIMIT 1"
     ), {"uid": uid, "pid": project_id}).mappings().first()
     if not row:
-        return {"name": "(unknown)", "initials": "??"}
+        return {"name": "(unknown)", "initials": "??", "email": ""}
     name = (row["name"] or "").strip()
     if not name:
         fn = (row["firstName"] or "").strip()
@@ -196,7 +196,7 @@ def _resolve_user(db: Session, uid: Optional[str], project_id: str) -> dict:
         name = "(unknown)"
     parts = name.split()
     initials = ((parts[0][:1] + parts[-1][:1]) if len(parts) >= 2 else name[:2]).upper()
-    return {"name": name, "initials": initials}
+    return {"name": name, "initials": initials, "email": (row["email"] or "").strip()}
 
 
 def _load_form_header(db: Session, form_id: str) -> dict:
@@ -224,9 +224,9 @@ def build_payload(db: Session, form_id: str) -> dict:
     meta = _load_form_header(db, form_id)
     project_id = meta["projectId"]
 
-    # Display site from projectName (Option 1 per handoff); fall back to sheq
-    # site_name, then a synthetic placeholder so the cell is never blank.
-    site_name = meta["projectName"] or meta["sheq_name"] or f"(project {project_id[:12]})"
+    # Design system §Data access rules: sheq_sites.site_name first, fall back
+    # to projectName, then a synthetic placeholder so the cell is never blank.
+    site_name = meta["sheq_name"] or meta["projectName"] or f"(project {project_id[:12]})"
     project_num = meta["sheq_sos"] or meta["proj_number"] or "—"
 
     # All UDFs for the form in one trip
@@ -427,6 +427,9 @@ def build_payload(db: Session, form_id: str) -> dict:
         # Assets
         "qr_data_uri": qr_data_uri,
         "logo_data_uri": logo_data_uri,
+        # Footer email — design system §Footer right block. Uses modifier's
+        # email (the last person to touch the form) rather than creator's.
+        "footer_email": modifier.get("email") or creator.get("email") or "",
     }
 
 
@@ -436,13 +439,12 @@ def render_html(payload: dict) -> str:
 
 
 def build_filename(db: Session, form_meta) -> str:
-    """CS037 filename: {yyyy-mm-dd}_CS037_{SiteNameSanitised}_{originator-email}.pdf
+    """Filename per design system §Filename pattern:
+        {yyyy-mm-dd}_CS037_{SiteNameSanitised}_{formId}.pdf
 
-    Date is the permit validity From (Europe/London), not form creation date.
-    Fallback to form.created if the From UDF is missing. Site is projectName-first
-    (same choice as display), sanitised to alphanumeric only. Originator email
-    comes from the DLX_2_users row for createdBy_userId; falls back to formId
-    if the user has no email on file.
+    Date is the permit validity From (Europe/London), fallback to form.created.
+    Site name follows the design system rule: sheq_sites.site_name first,
+    projectName fallback. formId guarantees uniqueness.
     """
     form_id = form_meta["formId"]
 
@@ -459,27 +461,19 @@ def build_filename(db: Session, form_meta) -> str:
     date_local, _ = _to_london(from_dt)
     date_str = date_local.strftime("%Y-%m-%d") if date_local else "unknown-date"
 
-    # Site name — projectName-first (Option 1)
+    # Site name — sheq-first per design system §Data access rules
     row = db.execute(text("""
-        SELECT p.projectName, s.site_name AS sheq_name
+        SELECT s.site_name AS sheq_name, p.projectName
         FROM DLX_2_forms f
-        LEFT JOIN DLX_2_projects p
-          ON f.projectId COLLATE utf8mb4_unicode_ci = p.projectId COLLATE utf8mb4_unicode_ci
         LEFT JOIN sheq_sites s
           ON f.projectId COLLATE utf8mb4_unicode_ci = s.dalux_id COLLATE utf8mb4_unicode_ci
+        LEFT JOIN DLX_2_projects p
+          ON f.projectId COLLATE utf8mb4_unicode_ci = p.projectId COLLATE utf8mb4_unicode_ci
         WHERE f.formId = :fid
     """), {"fid": form_id}).mappings().first()
     site_raw = None
     if row:
-        site_raw = row["projectName"] or row["sheq_name"]
+        site_raw = row["sheq_name"] or row["projectName"]
     site_clean = _sanitise_site(site_raw) or "site"
 
-    # Originator email (from the service.py form_meta join).
-    # Strip filesystem-reserved chars defensively; keep @ and dots.
-    email = (form_meta.get("creator_email") or "").strip()
-    if email:
-        tail = re.sub(r'[<>:"/\\|?*]', "", email)
-    else:
-        tail = form_id
-
-    return f"{date_str}_CS037_{site_clean}_{tail}.pdf"
+    return f"{date_str}_CS037_{site_clean}_{form_id}.pdf"
