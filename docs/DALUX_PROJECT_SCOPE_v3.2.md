@@ -196,6 +196,8 @@ Each new template = chat session for design, Claude Code session to wire in.
 
 7. **Reserved word `usage` in queries** — resolved in cs053.py but pattern could recur. Dev team should adopt backtick-all-columns-or-none convention for any SQL touching `DLX_2_tasks`.
 
+8. **CS053 UDF completeness varies by form** — not every form carries the `Project Name` / `Project Number` UDF rows, and some forms are missing category-header rows (e.g. `"1. Safe Access/Egress..."`) entirely rather than just having NULL value_text. First seen on NESY form `S405358071733291008` (13 of 14 category headers absent, both project UDFs absent). Cause unclear: either an older Dalux template version in use on that project, or the n8n sync dropping rows that had no inspector-set state. Workaround: `cs053.py` falls back to `DLX_2_projects.projectName`/`number` for site/project fields, and to hardcoded `CS053_CATEGORY_TITLES` for any missing category title. Dev team should investigate whether the sync is dropping rows vs whether the form template itself varies across projects — if the latter, the hardcoded title list in `cs053.py` will need a per-template-version map.
+
 ---
 
 ## Reference Forms

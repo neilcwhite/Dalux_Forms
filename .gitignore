@@ -34,6 +34,7 @@ backend/logs/
 
 # Generated reports (local cache)
 backend/reports_cache/
+backend/photo_cache/
 
 # Allow example env file
 !.env.example

@@ -12,6 +12,28 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 TEMPLATE_DIR = Path(__file__).parent / "templates"
 STATIC_DIR = Path(__file__).parent / "static"
 
+# Canonical CS053 category titles — used as fallback when a form's UDFs
+# don't contain the category-header row (inspector didn't tick the parent
+# category state, or sync dropped the row). These titles match the ones
+# Dalux emits for the current CS053 template; verify against a known-good
+# form if the template is ever revised upstream.
+CS053_CATEGORY_TITLES = {
+    1: "Safe Access/Egress & Place of Work (incl. lighting)",
+    2: "Traffic Routes & Vehicles",
+    3: "Site Order & Cleanliness",
+    4: "Site Security / Protection of Public",
+    5: "Excavations",
+    6: "Overhead Cables & Underground Services",
+    7: "Mobile Plant, Machinery & Equipment",
+    8: "Work at Height",
+    9: "Welfare",
+    10: "Fire & Other Emergencies",
+    11: "PPE (incl. RPE)",
+    12: "Environment",
+    13: "Quality",
+    14: "Safety Systems & Culture",
+}
+
 _env = Environment(
     loader=FileSystemLoader(str(TEMPLATE_DIR)),
     autoescape=select_autoescape(["html", "xml"]),
@@ -75,7 +97,7 @@ def _find_asset(folder: Path, prefixes: list[str]) -> Optional[str]:
     return None
 
 
-def build_payload(db: Session, form_id: str) -> dict:
+def build_payload(db: Session, form_id: str, form_meta: Optional[dict] = None) -> dict:
     from app.reports.service import fetch_photo_to_cache
 
     form = db.execute(text(
@@ -144,6 +166,22 @@ def build_payload(db: Session, form_id: str) -> dict:
         elif "actions been closed" in fn.lower() and r["value_reference_value"]:
             actions_closed = r["value_reference_value"]
 
+    # Bug 1 fix: fall back to DLX_2_projects / sheq_sites values when UDFs are empty.
+    # Some forms (e.g. NESY) don't carry 'Project Name' / 'Project Number' UDF rows.
+    if form_meta:
+        if not site_name:
+            site_name = (
+                form_meta.get("site_display")
+                or form_meta.get("dalux_project_name")
+                or ""
+            )
+        if not project_num:
+            project_num = (
+                form_meta.get("sos_number")
+                or form_meta.get("dalux_project_number")
+                or ""
+            )
+
     inspector_user = resolve_user(inspector_uid) if inspector_uid else created_by
     accompanied_names = [resolve_user(u)["fullName"] for u in accompanied_uids if u]
     company_names = []
@@ -187,6 +225,31 @@ def build_payload(db: Session, form_id: str) -> dict:
             cat = categories.setdefault(cat_num, {"num": cat_num, "title": "", "state": None, "items": []})
             cat["title"] = m_cat.group(2)
             cat["state"] = vt
+
+    # Bug 2 fix: category-header UDF rows are excluded from state_rows when
+    # value_text isn't Green/Red/N/A (e.g. inspector didn't tick the parent
+    # category state). Pull them separately so we still get the title text.
+    # If the header row is missing entirely (as it is on many NESY forms),
+    # fall back to CS053_CATEGORY_TITLES below.
+    cat_title_rows = db.execute(text(
+        r"SELECT field_name, value_text FROM DLX_2_form_udfs "
+        r"WHERE formId = :fid AND field_name REGEXP '^[0-9]+[.] +[A-Za-z]'"
+    ), {"fid": form_id}).mappings().all()
+    for r in cat_title_rows:
+        m = re.match(r"^(\d+)\.\s+(.+)$", r["field_name"])
+        if not m:
+            continue
+        cat_num = int(m.group(1))
+        cat = categories.setdefault(cat_num, {"num": cat_num, "title": "", "state": None, "items": []})
+        if not cat["title"]:
+            cat["title"] = m.group(2)
+        if r["value_text"] and cat["state"] is None:
+            cat["state"] = r["value_text"]
+
+    # Fill any category still missing a title from the canonical list.
+    for cat in categories.values():
+        if not cat["title"]:
+            cat["title"] = CS053_CATEGORY_TITLES.get(cat["num"], f"Category {cat['num']}")
 
     for cat in categories.values():
         cat["items"].sort(key=lambda x: x["sort"])

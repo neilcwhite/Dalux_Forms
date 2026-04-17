@@ -50,6 +50,8 @@ def generate_report(db: Session, form_id: str) -> tuple[bytes, str, int]:
                f.created, f.modified,
                COALESCE(s.site_name, p.projectName) AS site_display,
                s.sos_number,
+               p.projectName AS dalux_project_name,
+               p.number      AS dalux_project_number,
                u.firstName AS creator_first,
                u.lastName  AS creator_last
         FROM DLX_2_forms f
@@ -82,7 +84,7 @@ def generate_report(db: Session, form_id: str) -> tuple[bytes, str, int]:
         return pdf_bytes, filename, len(pdf_bytes)
 
     # 3. Build data payload via handler
-    payload = handler.build_payload(db, form_id)
+    payload = handler.build_payload(db, form_id, form_meta=dict(form_meta))
 
     # 4. Render HTML
     html_str = handler.render_html(payload)
