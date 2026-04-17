@@ -2,13 +2,16 @@
 from datetime import date, datetime
 from typing import Optional
 
-from fastapi import FastAPI, Depends, Query
+from fastapi import FastAPI, Depends, Query, HTTPException
+from fastapi.responses import Response
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db, get_app_db, app_engine, AppBase
 from app import models  # noqa: F401 - ensures models are registered before create_all
+from app.models import Download
+from app.reports.service import generate_report, ReportError
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -217,3 +220,45 @@ def list_forms(
         },
         "forms": results,
     }
+
+
+@app.get("/api/forms/{form_id}/download")
+def download_form(
+    form_id: str,
+    db: Session = Depends(get_db),
+    app_db: Session = Depends(get_app_db),
+):
+    """Generate (or serve from cache) a PDF and log the download."""
+    try:
+        pdf_bytes, filename, size_bytes = generate_report(db, form_id)
+    except ReportError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        # Log unexpected errors so we can see them in uvicorn output
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Report generation failed: {e}")
+
+    # Look up form.modified for redownload tracking
+    form_modified = db.execute(text(
+        "SELECT modified FROM DLX_2_forms WHERE formId = :fid"
+    ), {"fid": form_id}).scalar()
+
+    # Log to SQLite
+    dl = Download(
+        form_id=form_id,
+        form_modified_at=form_modified,
+        trigger_type="single",
+        file_size_bytes=size_bytes,
+    )
+    app_db.add(dl)
+    app_db.commit()
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "X-Report-Size": str(size_bytes),
+        },
+    )

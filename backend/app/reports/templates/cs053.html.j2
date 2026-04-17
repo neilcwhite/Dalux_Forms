@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<title>CS053 — {{ site_name }} — {{ insp_date }}</title>
+<style>
+@page {
+  size: A4;
+  margin: 15mm 15mm 22mm;
+  @bottom-left {
+    content: "Dalux Field\A Form No. CS 053 / Issue No. 18 (rev) / Revision Date: 16/04/2026\A SOS Location => INTERNAL AUDITS Weekly Safety Health Environmental & Quality Inspection (e.g. CS053)";
+    white-space: pre;
+    font-size: 7.5pt;
+    color: #555;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    line-height: 1.3;
+    padding-top: 6px;
+    border-top: 1px solid #D8DCE6;
+    width: 100%;
+  }
+  @bottom-right {
+    content: "Page " counter(page) " of " counter(pages);
+    font-size: 7.5pt;
+    color: #555;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    padding-top: 6px;
+    border-top: 1px solid #D8DCE6;
+    width: 80pt;
+    white-space: nowrap;
+    text-align: right;
+  }
+}
+:root {
+  --spencer-blue: #233E99; --spencer-blue-pale: #EEF1FA; --spencer-blue-mid: #5A72B8;
+  --ok-green: #2E7D4F; --ok-green-pale: #E6F4EA;
+  --err-red: #C0392B; --err-red-pale: #FDECEA;
+  --na-grey: #8A8A8A; --owner-bg: #EDEFF4; --owner-fg: #3F4B66;
+  --divider: #D8DCE6; --text: #1A1A1A; --text-muted: #555;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; color: var(--text); font-size: 10pt; line-height: 1.4; }
+.top-grid { display: table; width: 100%; margin-bottom: 10px; }
+.top-cell { display: table-cell; vertical-align: middle; }
+.top-qr { width: 78px; }
+.top-qr img { width: 70px; height: 70px; display: block; }
+.top-title { padding: 0 10px; }
+.top-title h1 { font-size: 14pt; font-weight: 700; margin: 0; line-height: 1.25; letter-spacing: 0.3px; }
+.top-logo { width: 180px; text-align: right; }
+.top-logo img { height: 48px; }
+.details-block { border: 1px solid var(--divider); margin-bottom: 10px; }
+.row-split { display: table; width: 100%; border-bottom: 1px solid var(--divider); table-layout: fixed; }
+.details-block > div:last-child { border-bottom: none; }
+.row-split > div { display: table-cell; vertical-align: middle; padding: 5px 8px; }
+.row-split .lbl { background: var(--spencer-blue); color: white; font-weight: 700; font-size: 8.5pt; text-transform: uppercase; letter-spacing: 0.3px; border-right: 1px solid white; width: 22%; }
+.row-split .val { background: white; width: 28%; }
+.row-split .val.wide { width: 78%; }
+.subsect-lbl { background: var(--spencer-blue); color: white; padding: 6px 8px; font-weight: 700; font-size: 8.5pt; text-transform: uppercase; letter-spacing: 0.3px; }
+.sc-row { display: table; width: 100%; table-layout: fixed; border-top: 1px solid white; }
+.sc-row > div { display: table-cell; vertical-align: middle; padding: 4px 6px; }
+.sc-row .sc-lbl { background: var(--spencer-blue); color: white; font-weight: 700; border-right: 1px solid white; font-size: 8.5pt; width: 30px; }
+.sc-row .sc-val { background: white; border-right: 1px solid var(--divider); width: 45%; }
+.summary-strip { display: table; width: 100%; border-spacing: 4px; margin: 8px 0; }
+.summary-cell { display: table-cell; padding: 7px 8px; text-align: center; border: 1px solid var(--divider); background: #FAFBFD; width: 20%; }
+.summary-cell .sc-label { font-size: 7.5pt; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-muted); font-weight: 600; }
+.summary-cell .sc-value { font-size: 18pt; font-weight: 700; color: var(--text); line-height: 1; margin-top: 2px; }
+.summary-cell.green .sc-value { color: var(--ok-green); }
+.summary-cell.red .sc-value { color: var(--err-red); }
+.summary-cell.na .sc-value { color: var(--na-grey); }
+.dq-banner { border: 1px solid var(--err-red); background: var(--err-red-pale); padding: 8px 10px; margin: 8px 0; font-size: 8.5pt; }
+.dq-title { font-weight: 700; color: var(--err-red); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px; }
+.dq-banner ul { margin: 0; padding-left: 18px; }
+.audit-caveat { background: var(--spencer-blue-pale); border-left: 3px solid var(--spencer-blue); padding: 6px 10px; margin: 8px 0; font-size: 7.5pt; line-height: 1.4; color: var(--text-muted); }
+.audit-caveat strong { color: var(--spencer-blue); text-transform: uppercase; letter-spacing: 0.3px; font-size: 7pt; }
+.provenance { font-size: 7.5pt; color: var(--text-muted); text-align: center; margin-top: 8px; font-style: italic; }
+.category { margin-bottom: 6px; break-inside: avoid-page; page-break-inside: avoid; }
+.category-header { display: table; width: 100%; table-layout: fixed; background: var(--spencer-blue); color: white; }
+.category-header > div { display: table-cell; vertical-align: middle; padding: 5px 10px; }
+.cat-num { font-size: 13pt; font-weight: 700; text-align: center; border-right: 1px solid rgba(255,255,255,0.35); width: 36px; }
+.cat-title { font-size: 10.5pt; font-weight: 700; letter-spacing: 0.2px; }
+.cat-counts { width: 230px; text-align: right; padding-right: 10px !important; white-space: nowrap; }
+.count-chip { display: inline-block; margin-left: 4px; padding: 2px 7px; border-radius: 10px; font-size: 7.5pt; font-weight: 700; letter-spacing: 0.3px; background: rgba(255,255,255,0.15); color: white; border: 1px solid rgba(255,255,255,0.3); }
+.count-chip .cc-num { font-size: 9pt; margin-right: 4px; }
+.count-chip .cc-lbl { text-transform: uppercase; font-size: 7pt; opacity: 0.9; }
+.count-chip.count-green { background: var(--ok-green); border-color: var(--ok-green); }
+.count-chip.count-red { background: var(--err-red); border-color: var(--err-red); }
+.count-chip.count-na { background: var(--na-grey); border-color: var(--na-grey); }
+.count-chip.count-blank { background: transparent; border: 1px dashed rgba(255,255,255,0.5); color: rgba(255,255,255,0.7); }
+.count-chip.count-zero { opacity: 0.35; }
+.category-items { border: 1px solid var(--divider); border-top: none; }
+.item-row { display: table; width: 100%; table-layout: fixed; border-bottom: 1px solid var(--divider); }
+.category-items > div:last-child { border-bottom: none; }
+.item-row:nth-child(even) { background: #FAFBFD; }
+.item-row > div { display: table-cell; vertical-align: middle; padding: 4px 10px; }
+.item-num { width: 44px; font-weight: 700; font-size: 9pt; color: var(--spencer-blue); }
+.item-body { font-size: 9pt; line-height: 1.35; }
+.item-photo { width: 170px; text-align: right; vertical-align: middle; padding: 6px 8px !important; }
+.item-photo img { max-width: 150px; max-height: 105px; display: inline-block; object-fit: cover; }
+.item-photo .photo-missing { display: inline-block; width: 150px; height: 105px; border: 1px dashed var(--spencer-blue-mid); background: var(--spencer-blue-pale); color: var(--spencer-blue); text-align: center; font-size: 7pt; padding-top: 42px; position: relative; }
+.photo-count-more { font-size: 7pt; color: var(--spencer-blue); margin-top: 3px; font-weight: 600; }
+.item-owner { width: 38px; text-align: center; vertical-align: middle; padding: 4px 4px !important; }
+.item-state { width: 80px; text-align: right; padding-right: 14px !important; }
+.owner-chip { display: inline-block; background: var(--owner-bg); color: var(--owner-fg); font-size: 7.5pt; font-weight: 700; letter-spacing: 0.5px; padding: 3px 7px; border-radius: 10px; min-width: 26px; text-align: center; font-family: Consolas, monospace; }
+.finding-inline { margin-top: 4px; padding: 3px 6px; background: var(--err-red-pale); border-left: 2px solid var(--err-red); font-size: 8pt; }
+.finding-inline > span { margin-right: 8px; }
+.finding-tag { font-weight: 700; color: var(--err-red); }
+.finding-subject { font-weight: 700; }
+.finding-sev { background: var(--err-red); color: white; padding: 1px 6px; border-radius: 2px; font-size: 7.5pt; }
+.finding-assignee { color: var(--text-muted); }
+.finding-closed { color: var(--ok-green); font-weight: 600; }
+.finding-open { color: var(--err-red); font-weight: 700; text-transform: uppercase; font-size: 7.5pt; }
+.finding-evidence { font-size: 7.5pt; color: var(--text-muted); font-style: italic; }
+.pill { display: inline-block; padding: 3px 10px; font-size: 8pt; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; border-radius: 2px; min-width: 50px; text-align: center; }
+.pill-green { background: var(--ok-green); color: white; }
+.pill-red { background: var(--err-red); color: white; }
+.pill-na { background: var(--na-grey); color: white; }
+.pill-blank { background: transparent; color: var(--na-grey); border: 1px dashed var(--na-grey); }
+.ph-no { position: absolute; top: 4px; left: 4px; background: var(--spencer-blue); color: white; font-size: 7pt; font-weight: 700; padding: 2px 6px; border-radius: 2px; font-family: Consolas, monospace; }
+.actions-section { margin-top: 12px; break-inside: avoid-page; }
+.section-title { background: var(--spencer-blue); color: white; padding: 6px 10px; font-weight: 700; font-size: 10pt; letter-spacing: 0.3px; text-transform: uppercase; }
+table.findings-table { width: 100%; border-collapse: collapse; font-size: 8.5pt; }
+table.findings-table th { background: var(--spencer-blue-pale); padding: 5px 8px; text-align: left; border: 1px solid var(--divider); font-weight: 700; font-size: 8pt; text-transform: uppercase; color: var(--spencer-blue); }
+table.findings-table td { padding: 6px 8px; border: 1px solid var(--divider); vertical-align: top; }
+.td-no { width: 24px; text-align: center; font-weight: 700; }
+.td-none { text-align: center; color: var(--ok-green); font-weight: 600; padding: 12px 0; }
+.find-hdr { font-weight: 700; }
+.find-item { color: var(--text-muted); margin-top: 2px; }
+.find-meta { font-size: 8pt; color: var(--text-muted); }
+.signoff-block { margin-top: 14px; border: 1px solid var(--divider); padding: 10px; display: table; width: 100%; }
+.signoff-block > div { display: table-cell; vertical-align: middle; }
+.signoff-name { font-weight: 700; }
+.signoff-hint { font-size: 8pt; color: var(--text-muted); margin-top: 4px; }
+.closecall-note { margin-top: 8px; padding: 8px 10px; background: var(--spencer-blue-pale); font-size: 8.5pt; border-left: 3px solid var(--spencer-blue); }
+.section-break { page-break-before: always; }
+.page-header-sm { background: var(--spencer-blue); color: white; padding: 6px 10px; font-weight: 700; font-size: 10pt; text-transform: uppercase; margin-bottom: 10px; }
+.photo-cell-full { border: 1px solid var(--divider); padding: 8px; margin-bottom: 8px; break-inside: avoid-page; page-break-inside: avoid; }
+.pc-full-hdr { display: table; width: 100%; padding-bottom: 6px; border-bottom: 2px solid var(--spencer-blue); margin-bottom: 6px; }
+.pc-full-hdr > span { display: table-cell; vertical-align: middle; }
+.pc-full-no { background: var(--spencer-blue); color: white; font-size: 11pt; font-weight: 700; padding: 4px 12px; border-radius: 2px; width: 110px; font-family: Consolas, monospace; }
+.pc-full-item { font-size: 10pt; font-weight: 700; padding-left: 12px; padding-right: 12px; }
+.pc-full-img { background: var(--spencer-blue-pale); border: 1px solid var(--spencer-blue-mid); height: 100mm; display: flex; align-items: center; justify-content: center; position: relative; }
+.pc-full-img img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.pc-full-img .photo-missing-large { color: var(--spencer-blue); font-size: 10pt; font-weight: 700; }
+.pc-full-img .ph-no { top: 8px; left: 8px; font-size: 10pt; padding: 3px 9px; }
+.pc-full-meta { margin-top: 6px; font-size: 8.5pt; color: var(--text-muted); text-align: right; font-style: italic; }
+.pc-src { display: inline-block; padding: 2px 8px; border-radius: 2px; font-size: 7.5pt; text-transform: uppercase; font-weight: 700; white-space: nowrap; }
+.pc-src-inspection { background: var(--spencer-blue-pale); color: var(--spencer-blue); }
+.pc-src-evidence { background: var(--err-red-pale); color: var(--err-red); }
+</style>
+</head>
+<body>
+
+<div class="top-grid">
+  {% if qr_data_uri %}<div class="top-cell top-qr"><img src="{{ qr_data_uri }}" alt="QR"></div>{% endif %}
+  <div class="top-cell top-title"><h1>CS053 — WEEKLY SAFETY, HEALTH,<br>ENVIRONMENTAL AND QUALITY INSPECTION</h1></div>
+  {% if logo_data_uri %}<div class="top-cell top-logo"><img src="{{ logo_data_uri }}" alt="Spencer"></div>{% endif %}
+</div>
+
+<div class="details-block">
+  <div class="row-split">
+    <div class="lbl">Site Name</div><div class="val">{{ site_name }}</div>
+    <div class="lbl">Project No.</div><div class="val">{{ project_num }}</div>
+  </div>
+  <div class="row-split">
+    <div class="lbl">Inspection By</div><div class="val">{{ inspector }}</div>
+    <div class="lbl">Inspection Date</div><div class="val">{{ insp_date }}</div>
+  </div>
+  <div class="row-split">
+    <div class="lbl">Accompanied By</div><div class="val wide">{{ accompanied|join(', ') if accompanied else '—' }}</div>
+  </div>
+  <div class="row-split">
+    <div class="lbl">Date of Last Inspection</div><div class="val">{{ last_insp or '—' }}</div>
+    <div class="lbl">Last Actions Closed?</div><div class="val">{{ actions_closed or '—' }}</div>
+  </div>
+  <div class="subsect-lbl">Subcontractors checked during inspection</div>
+  <div class="sc-row"><div class="sc-lbl">1.</div><div class="sc-val">{{ companies[0] if companies|length > 0 else '' }}</div>
+    <div class="sc-lbl">2.</div><div class="sc-val">{{ companies[1] if companies|length > 1 else '' }}</div></div>
+  <div class="sc-row"><div class="sc-lbl">3.</div><div class="sc-val">{{ companies[2] if companies|length > 2 else '' }}</div>
+    <div class="sc-lbl">4.</div><div class="sc-val">{{ companies[3] if companies|length > 3 else '' }}</div></div>
+</div>
+
+<div class="summary-strip">
+  <div class="summary-cell"><div class="sc-label">Items Inspected</div><div class="sc-value">{{ total_items }}</div></div>
+  <div class="summary-cell green"><div class="sc-label">Green</div><div class="sc-value">{{ total_green }}</div></div>
+  <div class="summary-cell red"><div class="sc-label">Red</div><div class="sc-value">{{ total_red }}</div></div>
+  <div class="summary-cell na"><div class="sc-label">N/A</div><div class="sc-value">{{ total_na }}</div></div>
+  <div class="summary-cell"><div class="sc-label">Photos</div><div class="sc-value">{{ total_photos }}</div></div>
+</div>
+
+{% if dq_warnings %}
+<div class="dq-banner">
+  <div class="dq-title">Data Quality Notes</div>
+  <ul>{% for w in dq_warnings %}<li>{{ w }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+<div class="audit-caveat">
+  <strong>Audit note:</strong> Per-item ownership shown as inspector initials (form-level attribution). Row-level modification history is not currently captured by the sync.
+  {% if creator_differs %} This form was originally submitted by {{ inspector }} and last modified by {{ modifier }}.{% endif %}
+</div>
+
+<div class="provenance">Generated from Dalux Field · Form ID: {{ form_id }} · Form No. {{ form_number }} · Status: {{ status }}</div>
+
+{% for cat in categories %}
+<section class="category">
+  <div class="category-header">
+    <div class="cat-num">{{ cat.num }}</div>
+    <div class="cat-title">{{ cat.title }}</div>
+    <div class="cat-counts">
+      <span class="count-chip count-green {% if cat.green == 0 %}count-zero{% endif %}"><span class="cc-num">{{ cat.green }}</span><span class="cc-lbl">Green</span></span>
+      <span class="count-chip count-red {% if cat.red == 0 %}count-zero{% endif %}"><span class="cc-num">{{ cat.red }}</span><span class="cc-lbl">Red</span></span>
+      <span class="count-chip count-na {% if cat.na == 0 %}count-zero{% endif %}"><span class="cc-num">{{ cat.na }}</span><span class="cc-lbl">N/A</span></span>
+      {% if cat.blank > 0 %}<span class="count-chip count-blank"><span class="cc-num">{{ cat.blank }}</span><span class="cc-lbl">—</span></span>{% endif %}
+    </div>
+  </div>
+  <div class="category-items">
+    {% for item in cat.items %}
+    <div class="item-row">
+      <div class="item-num">{{ item.num }}</div>
+      <div class="item-body">
+        <div class="item-title">{{ item.title }}</div>
+        {% for f in item.findings %}
+        <div class="finding-inline">
+          <span class="finding-tag">{{ f.number }}</span>
+          <span class="finding-subject">{{ f.subject }}</span>
+          <span class="finding-sev">Severity {{ f.severity }}</span>
+          <span class="finding-assignee">→ {{ f.assignee }}</span>
+          {% if f.closed_date %}<span class="finding-closed">Closed {{ f.closed_date }}</span>
+          {% else %}<span class="finding-open">Open</span>{% endif %}
+          {% if f.evidence_nos %}<span class="finding-evidence">Evidence: {{ f.evidence_nos|join(', ') }}</span>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      <div class="item-photo">
+        {% if item.photos %}
+          {% set p = item.photos[0] %}
+          {% if p.local_src %}<img src="{{ p.local_src }}" alt="Photo #{{ p.photo_no }}">{% else %}<div class="photo-missing"><div class="ph-no">#{{ p.photo_no }}</div>Photo<br>{{ p.attachmentId[:8] }}</div>{% endif %}
+          {% if item.photos|length > 1 %}<div class="photo-count-more">+{{ item.photos|length - 1 }} more</div>{% endif %}
+        {% endif %}
+      </div>
+      <div class="item-owner">
+        {% if item.state %}<span class="owner-chip">{{ inspector_initials }}</span>{% endif %}
+      </div>
+      <div class="item-state">
+        {% set pc = {'Green': 'pill-green', 'Red': 'pill-red', 'N/A': 'pill-na'}.get(item.state, 'pill-blank') %}
+        <span class="pill {{ pc }}">{{ item.state or '—' }}</span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endfor %}
+
+<section class="actions-section">
+  <div class="section-title">Findings &amp; Actions</div>
+  <table class="findings-table">
+    <thead><tr><th style="width:24px">No.</th><th>Finding</th><th>Action to be Taken</th><th>Who By</th><th>Closed (Date)</th><th>Close Call</th></tr></thead>
+    <tbody>
+      {% for f in findings %}
+      <tr>
+        <td class="td-no">{{ loop.index }}</td>
+        <td>
+          <div class="find-hdr">{{ f.number }} — {{ f.subject }}{% if f.evidence_nos %} (Evidence: {{ f.evidence_nos|join(', ') }}){% endif %}</div>
+          <div class="find-item">Item: {{ f.item_ref }}</div>
+          <div class="find-meta">Severity: {{ f.severity }}</div>
+        </td>
+        <td>(see Dalux task record)</td>
+        <td>{{ f.assignee }}</td>
+        <td>{{ f.closed_date or '—' }}</td>
+        <td>—</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="td-none">No findings raised during this inspection.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+<div class="closecall-note">Please confirm that all Close Calls identified in this report have been uploaded onto the Close Call System (https://thespencergroup.co.uk/closecall/)</div>
+<div class="signoff-block">
+  <div><div class="signoff-name">Signed: {{ inspector }}</div><div class="signoff-hint">Digital signature captured in Dalux Field on {{ insp_date }}</div></div>
+</div>
+
+{% if all_photos %}
+<div class="section-break"></div>
+<div class="page-header-sm">Photographic Evidence (Appendix) — {{ all_photos|length }} photos</div>
+{% for p in all_photos %}
+<div class="photo-cell-full">
+  <div class="pc-full-hdr">
+    <span class="pc-full-no">Photo #{{ p.photo_no }}</span>
+    <span class="pc-full-item">{{ p.item_num }} — {{ p.item_title }}</span>
+    <span class="pc-src pc-src-{{ p.src }}">{{ 'CAR Evidence' if p.src == 'evidence' else 'Inspection' }}</span>
+  </div>
+  <div class="pc-full-img">
+    {% if p.local_src %}<img src="{{ p.local_src }}" alt="Photo #{{ p.photo_no }}"><div class="ph-no">#{{ p.photo_no }}</div>
+    {% else %}<div class="photo-missing-large">Photo #{{ p.photo_no }} — not downloaded</div>{% endif %}
+  </div>
+  <div class="pc-full-meta">Captured {{ p.created or '—' }}</div>
+</div>
+{% endfor %}
+{% endif %}
+
+</body>
+</html>
