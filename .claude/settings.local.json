@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s -o c:/tmp/test.pdf -w \"HTTP=%{http_code} SIZE=%{size_download}\\\\n\" \"http://localhost:8000/api/forms/S432861154763606016/download\")",
+      "Bash(git config *)",
+      "Bash(curl -s \"http://localhost:8000/api/sites/form-summary\")",
+      "Bash(c:/GitHub/Dalux_Forms/backend/venv/Scripts/python.exe -c ' *)"
+    ]
+  }
+}
