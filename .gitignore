@@ -22,7 +22,8 @@ backend/data/*.sqlite
 backend/data/*.sqlite3
 
 # IDE / OS
-.vscode/
+.vscode/*
+!.vscode/settings.json
 .idea/
 *.swp
 Thumbs.db
