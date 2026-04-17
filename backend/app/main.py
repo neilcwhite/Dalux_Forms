@@ -28,7 +28,10 @@ def startup_init_app_db():
 
 
 TEMPLATES_WITH_CUSTOM_REPORT = {
-    "Weekly Safety inspection",  # CS053
+    "Weekly Safety inspection": {
+        "code": "CS053",
+        "display": "CS053 — Weekly Safety inspection",
+    },
 }
 
 
@@ -48,6 +51,65 @@ def db_health(db: Session = Depends(get_db)):
         count = db.execute(text(f"SELECT COUNT(*) FROM {table}")).scalar()
         result[table] = count
     return result
+
+
+@app.get("/api/sites/form-summary")
+def site_form_summary(
+    db: Session = Depends(get_db),
+    app_db: Session = Depends(get_app_db),
+):
+    """For each project: which custom-report templates are in use, total form count, and how many have never been downloaded."""
+    if not TEMPLATES_WITH_CUSTOM_REPORT:
+        return {}
+    template_list = sorted(TEMPLATES_WITH_CUSTOM_REPORT)
+    placeholders = ",".join(f":t{i}" for i in range(len(template_list)))
+    binds = {f"t{i}": tn for i, tn in enumerate(template_list)}
+    forms = db.execute(text(f"""
+        SELECT f.projectId, f.template_name, f.formId, f.number
+        FROM DLX_2_forms f
+        WHERE (f.deleted = 0 OR f.deleted IS NULL)
+          AND f.template_name IN ({placeholders})
+    """), binds).mappings().all()
+
+    all_form_ids = [r["formId"] for r in forms]
+    downloaded: set[str] = set()
+    BATCH = 500
+    for i in range(0, len(all_form_ids), BATCH):
+        chunk = all_form_ids[i:i + BATCH]
+        ph = ",".join(f":f{j}" for j in range(len(chunk)))
+        bind = {f"f{j}": fid for j, fid in enumerate(chunk)}
+        for dr in app_db.execute(
+            text(f"SELECT DISTINCT form_id FROM downloads WHERE form_id IN ({ph})"),
+            bind,
+        ).mappings().all():
+            downloaded.add(dr["form_id"])
+
+    summary: dict[str, dict] = {}
+    for r in forms:
+        pid = r["projectId"]
+        entry = summary.setdefault(pid, {
+            "templates": {},
+            "total_forms": 0,
+            "undownloaded_forms": 0,
+        })
+        entry["total_forms"] += 1
+        if r["formId"] not in downloaded:
+            entry["undownloaded_forms"] += 1
+        tpl = entry["templates"].setdefault(r["template_name"], {
+            "template_name": r["template_name"],
+            "short_code": (r["number"] or r["template_name"]).split("_")[0],
+            "count": 0,
+        })
+        tpl["count"] += 1
+
+    return {
+        pid: {
+            "templates": list(e["templates"].values()),
+            "total_forms": e["total_forms"],
+            "undownloaded_forms": e["undownloaded_forms"],
+        }
+        for pid, e in summary.items()
+    }
 
 
 @app.get("/api/sites")
@@ -91,7 +153,9 @@ def list_form_types(db: Session = Depends(get_db)):
     result = []
     for r in rows:
         d = dict(r)
-        d["has_custom_report"] = d["template_name"] in TEMPLATES_WITH_CUSTOM_REPORT
+        meta = TEMPLATES_WITH_CUSTOM_REPORT.get(d["template_name"])
+        d["has_custom_report"] = meta is not None
+        d["display_name"] = meta["display"] if meta else d["template_name"]
         result.append(d)
     return result
 

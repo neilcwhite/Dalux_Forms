@@ -21,6 +21,7 @@ export interface Site {
 
 export interface FormType {
   template_name: string;
+  display_name: string;
   type: string;
   form_count: number;
   first_seen: string;
@@ -57,6 +58,25 @@ export interface FormsResponse {
 
 export async function fetchSites(): Promise<Site[]> {
   const { data } = await api.get<Site[]>("/api/sites");
+  return data;
+}
+
+export interface SiteTemplateSummary {
+  template_name: string;
+  short_code: string;
+  count: number;
+}
+
+export interface SiteFormSummaryEntry {
+  templates: SiteTemplateSummary[];
+  total_forms: number;
+  undownloaded_forms: number;
+}
+
+export type SiteFormSummary = Record<string, SiteFormSummaryEntry>;
+
+export async function fetchSiteFormSummary(): Promise<SiteFormSummary> {
+  const { data } = await api.get<SiteFormSummary>("/api/sites/form-summary");
   return data;
 }
 

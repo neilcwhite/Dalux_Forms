@@ -69,8 +69,6 @@ html, body { margin: 0; padding: 0; font-family: "Helvetica Neue", Helvetica, Ar
 .dq-banner { border: 1px solid var(--err-red); background: var(--err-red-pale); padding: 8px 10px; margin: 8px 0; font-size: 8.5pt; }
 .dq-title { font-weight: 700; color: var(--err-red); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px; }
 .dq-banner ul { margin: 0; padding-left: 18px; }
-.audit-caveat { background: var(--spencer-blue-pale); border-left: 3px solid var(--spencer-blue); padding: 6px 10px; margin: 8px 0; font-size: 7.5pt; line-height: 1.4; color: var(--text-muted); }
-.audit-caveat strong { color: var(--spencer-blue); text-transform: uppercase; letter-spacing: 0.3px; font-size: 7pt; }
 .provenance { font-size: 7.5pt; color: var(--text-muted); text-align: center; margin-top: 8px; font-style: italic; }
 .category { margin-bottom: 6px; break-inside: avoid-page; page-break-inside: avoid; }
 .category-header { display: table; width: 100%; table-layout: fixed; background: var(--spencer-blue); color: white; }
@@ -193,10 +191,6 @@ table.findings-table td { padding: 6px 8px; border: 1px solid var(--divider); ve
 </div>
 {% endif %}
 
-<div class="audit-caveat">
-  <strong>Audit note:</strong> Per-item ownership shown as inspector initials (form-level attribution). Row-level modification history is not currently captured by the sync.
-  {% if creator_differs %} This form was originally submitted by {{ inspector }} and last modified by {{ modifier }}.{% endif %}
-</div>
 
 <div class="provenance">Generated from Dalux Field · Form ID: {{ form_id }} · Form No. {{ form_number }} · Status: {{ status }}</div>
 

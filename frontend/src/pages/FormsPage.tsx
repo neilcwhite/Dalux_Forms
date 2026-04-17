@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchSites, fetchFormTypes, fetchForms, type FormRow } from "../api";
+import { fetchSites, fetchFormTypes, fetchForms, fetchSiteFormSummary, type FormRow } from "../api";
 
 export default function FormsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -44,6 +44,11 @@ export default function FormsPage() {
   const sitesQuery = useQuery({
     queryKey: ["sites"],
     queryFn: fetchSites,
+  });
+
+  const siteSummaryQuery = useQuery({
+    queryKey: ["site-form-summary"],
+    queryFn: fetchSiteFormSummary,
   });
 
   const formTypesQuery = useQuery({
@@ -93,6 +98,20 @@ export default function FormsPage() {
 
   async function downloadSelectedAsZip() {
     if (selected.size === 0) return;
+    const allForms = formsQuery.data?.forms ?? [];
+    const openSelected = allForms.filter(
+      f => selected.has(f.formId) && f.status !== "closed"
+    );
+    if (openSelected.length > 0) {
+      const sample = openSelected.slice(0, 5).map(f => `  • ${f.number ?? f.formId} (${f.status})`).join("\n");
+      const more = openSelected.length > 5 ? `\n  …and ${openSelected.length - 5} more` : "";
+      const ok = window.confirm(
+        `${openSelected.length} of ${selected.size} selected form(s) are not closed yet — ` +
+        `their PDFs may not reflect the final state:\n\n${sample}${more}\n\n` +
+        `Download anyway?`
+      );
+      if (!ok) return;
+    }
     setBulkBusy(true);
     try {
       const resp = await fetch("/api/forms/bulk-download", {
@@ -155,13 +174,13 @@ export default function FormsPage() {
               <option value="">All types ({formTypesQuery.data?.length ?? 0})</option>
               {formTypesQuery.data?.filter(t => t.has_custom_report).map(t => (
                 <option key={t.template_name} value={t.template_name}>
-                  ✓ {t.template_name} ({t.form_count})
+                  ✓ {t.display_name} ({t.form_count})
                 </option>
               ))}
               <option disabled>── Without custom report ──</option>
               {formTypesQuery.data?.filter(t => !t.has_custom_report).map(t => (
                 <option key={t.template_name} value={t.template_name}>
-                  {t.template_name} ({t.form_count})
+                  {t.display_name} ({t.form_count})
                 </option>
               ))}
             </select>
@@ -227,17 +246,40 @@ export default function FormsPage() {
           <div className="flex flex-wrap gap-1.5">
             {sitesQuery.data?.filter(s => s.is_mapped === 1).map(s => {
               const selected = siteIds.includes(s.dalux_id);
+              const summaryEntry = siteSummaryQuery.data?.[s.dalux_id];
+              const totalForms = summaryEntry?.total_forms ?? 0;
+              const undownloaded = summaryEntry?.undownloaded_forms ?? 0;
+              const hasNoForms = totalForms === 0;
+              const needsAttention = undownloaded > 0;
+
+              let stateClasses: string;
+              if (selected) {
+                stateClasses = "bg-[#233E99] text-white border-[#233E99]";
+              } else if (hasNoForms) {
+                stateClasses = "bg-gray-50 text-gray-400 border-gray-200 hover:border-gray-400";
+              } else if (needsAttention) {
+                stateClasses = "bg-white text-gray-700 border-2 border-amber-500 hover:bg-amber-50";
+              } else {
+                stateClasses = "bg-white text-gray-700 border border-gray-300 hover:border-[#233E99]";
+              }
+
+              const tooltip = hasNoForms
+                ? "No downloadable forms"
+                : needsAttention
+                  ? `${undownloaded} of ${totalForms} form${totalForms === 1 ? "" : "s"} not yet downloaded`
+                  : `${totalForms} form${totalForms === 1 ? "" : "s"} — all downloaded`;
+
               return (
                 <button
                   key={s.dalux_id}
                   onClick={() => toggleSite(s.dalux_id)}
-                  className={`px-2.5 py-1 text-xs rounded border transition-colors ${
-                    selected
-                      ? "bg-[#233E99] text-white border-[#233E99]"
-                      : "bg-white text-gray-700 border-gray-300 hover:border-[#233E99]"
-                  }`}
+                  title={tooltip}
+                  className={`px-2.5 py-1 text-xs rounded transition-colors ${stateClasses}`}
                 >
                   {s.sos_number} · {s.site_name}
+                  {needsAttention && !selected && (
+                    <span className="ml-1 text-amber-600 font-semibold">●</span>
+                  )}
                 </button>
               );
             })}
@@ -349,6 +391,13 @@ function FormRowView({
     : null;
 
   async function handleDownload() {
+    if (form.status !== "closed") {
+      const ok = window.confirm(
+        `This form's status is "${form.status}" — it has not been closed yet.\n` +
+        `The PDF may not reflect the final state.\n\nDownload anyway?`
+      );
+      if (!ok) return;
+    }
     try {
       const resp = await fetch(`/api/forms/${form.formId}/download`);
       if (!resp.ok) {
