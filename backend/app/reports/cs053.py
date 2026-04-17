@@ -97,7 +97,7 @@ def _find_asset(folder: Path, prefixes: list[str]) -> Optional[str]:
     return None
 
 
-def build_payload(db: Session, form_id: str, form_meta: Optional[dict] = None) -> dict:
+def build_payload(db: Session, form_id: str) -> dict:
     from app.reports.service import fetch_photo_to_cache
 
     form = db.execute(text(
@@ -133,14 +133,31 @@ def build_payload(db: Session, form_id: str, form_meta: Optional[dict] = None) -
     modified_by = resolve_user(form["modifiedBy_userId"])
     creator_differs = form["createdBy_userId"] != form["modifiedBy_userId"]
 
+    # Site name and project number come from the project/site tables, not UDFs.
+    # Dalux auto-populates them from project metadata; they aren't inspector-filled
+    # fields and don't live in DLX_2_form_udfs. Prefer sheq_sites (Spencer's
+    # master list with the proper SOS number) and fall back to DLX_2_projects
+    # for unmapped Dalux projects so the header is never blank.
+    site_row = db.execute(text("""
+        SELECT
+            COALESCE(s.site_name, p.projectName) AS site_name,
+            COALESCE(s.sos_number, p.number)     AS project_num
+        FROM DLX_2_forms f
+        LEFT JOIN DLX_2_projects p
+          ON f.projectId COLLATE utf8mb4_unicode_ci = p.projectId COLLATE utf8mb4_unicode_ci
+        LEFT JOIN sheq_sites s
+          ON f.projectId COLLATE utf8mb4_unicode_ci = s.dalux_id COLLATE utf8mb4_unicode_ci
+        WHERE f.formId = :fid
+    """), {"fid": form_id}).mappings().first()
+    site_name = (site_row["site_name"] if site_row else "") or ""
+    project_num = (site_row["project_num"] if site_row else "") or ""
+
     meta_rows = db.execute(text(
         "SELECT field_name, value_text, value_date, value_relation_userId, "
         "value_relation_companyId, value_reference_value "
         "FROM DLX_2_form_udfs WHERE formId = :fid"
     ), {"fid": form_id}).mappings().all()
 
-    site_name = ""
-    project_num = ""
     insp_date = ""
     last_insp = ""
     inspector_uid = None
@@ -149,11 +166,7 @@ def build_payload(db: Session, form_id: str, form_meta: Optional[dict] = None) -
     actions_closed = ""
     for r in meta_rows:
         fn = r["field_name"] or ""
-        if fn == "Project Name" and r["value_text"]:
-            site_name = r["value_text"]
-        elif fn == "Project Number" and r["value_text"]:
-            project_num = r["value_text"]
-        elif fn == "Date" and r["value_date"]:
+        if fn == "Date" and r["value_date"]:
             insp_date = str(r["value_date"])
         elif fn == "Date of last inspection" and r["value_date"]:
             last_insp = str(r["value_date"])
@@ -165,22 +178,6 @@ def build_payload(db: Session, form_id: str, form_meta: Optional[dict] = None) -
             company_ids.append(r["value_relation_companyId"])
         elif "actions been closed" in fn.lower() and r["value_reference_value"]:
             actions_closed = r["value_reference_value"]
-
-    # Bug 1 fix: fall back to DLX_2_projects / sheq_sites values when UDFs are empty.
-    # Some forms (e.g. NESY) don't carry 'Project Name' / 'Project Number' UDF rows.
-    if form_meta:
-        if not site_name:
-            site_name = (
-                form_meta.get("site_display")
-                or form_meta.get("dalux_project_name")
-                or ""
-            )
-        if not project_num:
-            project_num = (
-                form_meta.get("sos_number")
-                or form_meta.get("dalux_project_number")
-                or ""
-            )
 
     inspector_user = resolve_user(inspector_uid) if inspector_uid else created_by
     accompanied_names = [resolve_user(u)["fullName"] for u in accompanied_uids if u]
