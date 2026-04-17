@@ -32,6 +32,10 @@ TEMPLATES_WITH_CUSTOM_REPORT = {
         "code": "CS053",
         "display": "CS053 — Weekly Safety inspection",
     },
+    "Permit to Undertake Hot Work": {
+        "code": "CS037",
+        "display": "CS037 — Permit to undertake hot work",
+    },
 }
 
 

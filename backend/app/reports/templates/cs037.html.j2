@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>CS037 — Permit to Undertake Hot Work · {{ form_number }} ({{ site_name }})</title>
+<style>
+  :root {
+    --spencer-blue: #233E99;
+    --spencer-blue-pale: #EEF1FA;
+    --ok-green: #2E7D4F;
+    --err-red: #C0392B;
+    --amber: #B26500;
+    --amber-pale: #FFF3E0;
+    --na-grey: #8A8A8A;
+    --divider: #233E99;
+    --divider-soft: #D8DCE6;
+    --text: #1A1A1A;
+    --text-muted: #555;
+    --bg-alt: #FAFBFD;
+  }
+
+  @page {
+    size: A4;
+    margin: 15mm 15mm 22mm 15mm;
+
+    @bottom-left {
+      content: element(pageFooter);
+      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+      font-size: 7.5pt;
+      color: var(--text-muted);
+      width: 100%;
+    }
+    @bottom-right {
+      content: "Page " counter(page) " of " counter(pages);
+      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+      font-size: 7.5pt;
+      color: var(--text-muted);
+      width: 80pt;
+      text-align: right;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    color: var(--text);
+    font-size: 9.5pt;
+    line-height: 1.4;
+  }
+
+  .page-footer {
+    position: running(pageFooter);
+    border-top: 1px solid var(--divider-soft);
+    padding-top: 4pt;
+    font-size: 7.5pt;
+    color: var(--text-muted);
+    line-height: 1.35;
+  }
+  .page-footer .line1 { font-weight: 600; color: var(--text); }
+
+  /* ---------- Page 1 header band ---------- */
+  .header-band { display: table; width: 100%; margin-bottom: 8pt; }
+  .header-band .cell { display: table-cell; vertical-align: middle; }
+  .qr-cell { width: 62px; }
+  .qr-cell img { display: block; width: 62px; height: 62px; }
+  .title-cell { padding: 0 12pt; text-align: center; }
+  .title-cell .doc-title {
+    font-size: 13pt; font-weight: 700; color: var(--spencer-blue);
+    letter-spacing: 0.2px; margin: 0; line-height: 1.2; white-space: nowrap;
+  }
+  .logo-cell { width: 160px; text-align: right; }
+  .logo-cell img { display: inline-block; height: 40px; width: auto; }
+
+  /* ---------- Identifier grid ---------- */
+  .id-grid { width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 10pt; table-layout: fixed; }
+  .id-grid td {
+    background: var(--bg-alt); border: 1px solid var(--divider);
+    padding: 5pt 8pt; vertical-align: top; overflow-wrap: break-word;
+  }
+  .id-grid td:nth-child(1) { width: 20%; }
+  .id-grid td:nth-child(2) { width: 60%; }
+  .id-grid td:nth-child(3) { width: 20%; }
+  .id-grid td + td { border-left: none; }
+  .id-grid tr + tr td { border-top: none; }
+  .id-label { font-size: 6.5pt; letter-spacing: 0.4px; color: var(--text-muted); margin-bottom: 1pt; }
+  .id-value { font-size: 10.5pt; font-weight: 600; color: var(--text); line-height: 1.1; }
+  /* Auto-shrink tiers applied by the builder based on content length */
+  .id-value.len-md { font-size: 9.5pt; line-height: 1.15; }
+  .id-value.len-lg { font-size: 8.5pt; line-height: 1.2; }
+  .id-value.len-xl { font-size: 7.5pt; line-height: 1.25; }
+  .id-value.mono { font-family: "Courier New", Menlo, monospace; font-size: 9.5pt; }
+  .id-value.mono.len-md { font-size: 8.5pt; }
+  .id-value.mono.len-lg { font-size: 7.5pt; }
+  .id-value.mono.len-xl { font-size: 6.5pt; }
+
+  .status-chip {
+    display: inline-block; padding: 2pt 8pt; border-radius: 10pt;
+    font-size: 8.5pt; font-weight: 700; letter-spacing: 0.5px;
+  }
+  .status-chip.closed { background: var(--ok-green); color: #fff; }
+  .status-chip.open { background: var(--amber); color: #fff; }
+  .status-chip.expired { background: var(--err-red); color: #fff; }
+
+  /* ---------- Validity window ---------- */
+  .validity-block { margin-bottom: 12pt; border: 1.5pt solid var(--spencer-blue); border-radius: 2pt; overflow: hidden; }
+  .validity-head {
+    background: var(--spencer-blue); color: #fff; padding: 4pt 10pt;
+    font-size: 9pt; font-weight: 700; letter-spacing: 0.7px;
+  }
+  .validity-head .tz-note {
+    float: right; font-weight: 400; font-size: 7.5pt;
+    color: rgba(255,255,255,0.80); letter-spacing: 0.3px; text-transform: none;
+  }
+  .validity-body { display: table; width: 100%; table-layout: fixed; }
+  .validity-body .v-cell {
+    display: table-cell; padding: 8pt 12pt; vertical-align: middle;
+    border-right: 1px solid var(--divider);
+  }
+  .validity-body .v-cell:last-child { border-right: none; }
+  .validity-body .v-label { font-size: 7pt; color: var(--text-muted); letter-spacing: 0.4px; }
+  .validity-body .v-value {
+    font-size: 11pt; font-weight: 700; color: var(--text);
+    margin-top: 2pt; white-space: nowrap;
+  }
+  .validity-body .v-value .tz { font-weight: 700; color: var(--text); margin-left: 4pt; font-size: 11pt; }
+  .validity-body .v-duration { text-align: center; width: 110pt; }
+
+  /* ---------- Section headers ---------- */
+  .section { margin-top: 10pt; margin-bottom: 8pt; page-break-inside: avoid; }
+  .section-head {
+    background: var(--spencer-blue); color: #fff; padding: 4pt 10pt;
+    font-size: 9pt; font-weight: 700; letter-spacing: 0.7px;
+  }
+  .section-head .sub {
+    font-weight: 400; font-size: 7.5pt; color: rgba(255,255,255,0.80);
+    margin-left: 8pt; letter-spacing: 0.3px; text-transform: none;
+  }
+  .section-body { border: 1px solid var(--divider); border-top: none; padding: 8pt 10pt; background: #fff; }
+  .section-body.no-pad { padding: 0; }
+
+  /* ---------- Signature block ---------- */
+  .sig-block { display: table; width: 100%; border-collapse: collapse; }
+  .sig-block .sig-cell { display: table-cell; vertical-align: top; padding: 0; }
+  .sig-block .sig-left { width: 220px; padding-right: 14pt; }
+  .sig-block .sig-right { vertical-align: top; padding-top: 4pt; }
+
+  /* Placeholder signature box (used when no cached PNG is available) */
+  .sig-img {
+    width: 220px; height: 75px;
+    border: 1px dashed #B5BCCB;
+    background: linear-gradient(135deg, #fafbfd 25%, transparent 25%) -8px 0/16px 16px,
+                linear-gradient(225deg, #fafbfd 25%, transparent 25%) -8px 0/16px 16px,
+                linear-gradient(315deg, #fafbfd 25%, transparent 25%) 0 0/16px 16px,
+                linear-gradient(45deg, #fafbfd 25%, #ffffff 25%) 0 0/16px 16px;
+    display: flex; align-items: center; justify-content: center;
+    color: #9AA0AE; font-size: 7pt; letter-spacing: 0.6px;
+  }
+  .sig-img .stroke {
+    font-family: "Segoe Script", "Brush Script MT", cursive;
+    font-size: 16pt; color: #3F4B66; transform: skewX(-6deg); opacity: 0.55;
+  }
+  .sig-img .missing-note {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 7pt; letter-spacing: 0.4px; color: #9AA0AE;
+  }
+  /* Real signature image — rendered when an attachment was fetched */
+  .sig-img-real {
+    width: 220px; height: 75px;
+    object-fit: contain; object-position: left center;
+    border-bottom: 1px solid var(--divider-soft);
+  }
+  .sig-caption { margin-top: 4pt; font-size: 8.5pt; color: var(--text); }
+  .sig-caption .name { font-weight: 700; }
+  .sig-caption .ts { color: var(--text-muted); font-size: 7.5pt; margin-top: 1pt; }
+  .sig-role { font-size: 6.5pt; color: var(--text-muted); letter-spacing: 0.4px; margin-bottom: 3pt; }
+  .sig-body { font-size: 8.5pt; color: var(--text-muted); line-height: 1.45; max-width: 360px; }
+
+  /* ---------- Part A narrative ---------- */
+  .narrative-table { width: 100%; border-collapse: collapse; }
+  .narrative-table td { border: 1px solid var(--divider); padding: 6pt 9pt; vertical-align: top; }
+  .narrative-table td.label {
+    width: 170px; background: var(--bg-alt);
+    font-size: 7.5pt; color: var(--text-muted); letter-spacing: 0.3px;
+  }
+  .narrative-table td.content { font-size: 9.5pt; color: var(--text); font-weight: 500; }
+
+  /* ---------- Part B precautions ---------- */
+  .precaution-table { width: 100%; border-collapse: collapse; }
+  .precaution-table tr td {
+    border-top: 1px solid var(--divider-soft);
+    padding: 5pt 9pt; vertical-align: middle; font-size: 9pt;
+  }
+  .precaution-table tr:first-child td { border-top: none; }
+  .precaution-table tr:nth-child(even) td { background: var(--bg-alt); }
+  .precaution-table td.num {
+    width: 26px; text-align: right; color: var(--text-muted);
+    font-size: 8pt; padding-right: 8pt;
+  }
+  .precaution-table td.label { line-height: 1.35; }
+  .precaution-table td.state { width: 80px; text-align: right; }
+  .state-pill {
+    display: inline-block; padding: 2pt 8pt; font-size: 8pt;
+    font-weight: 700; letter-spacing: 0.6px;
+    min-width: 52px; text-align: center; border-radius: 2pt;
+  }
+  .state-pill.yes { background: var(--ok-green); color: #fff; }
+  .state-pill.no { background: var(--err-red); color: #fff; }
+  .state-pill.na { background: var(--na-grey); color: #fff; }
+  .state-pill.blank { background: transparent; color: var(--text-muted); border: 1px dashed var(--na-grey); }
+
+  /* ---------- Part D ---------- */
+  .person-card {
+    border: 1px solid var(--divider); background: var(--bg-alt);
+    padding: 8pt 10pt; margin-bottom: 6pt; page-break-inside: avoid;
+  }
+  .person-card .person-head {
+    font-size: 7.5pt; letter-spacing: 0.4px;
+    color: var(--spencer-blue); font-weight: 700; margin-bottom: 6pt;
+  }
+  .person-card .person-body { display: table; width: 100%; }
+  .person-card .pb-left { display: table-cell; vertical-align: top; width: 230px; padding-right: 14pt; }
+  .person-card .pb-right { display: table-cell; vertical-align: top; }
+  .person-card .position-label { font-size: 6.5pt; letter-spacing: 0.4px; color: var(--text-muted); }
+  .person-card .position-value { font-size: 10pt; font-weight: 600; color: var(--text); margin-top: 1pt; }
+
+  /* ---------- Provenance ---------- */
+  .provenance {
+    margin-top: 12pt; padding-top: 6pt; border-top: 1px solid var(--divider-soft);
+    text-align: center; font-size: 7.5pt; font-style: italic; color: var(--text-muted);
+  }
+
+  .mono { font-family: "Courier New", Menlo, monospace; }
+</style>
+</head>
+<body>
+
+<!-- Running footer element -->
+<div class="page-footer">
+  <div class="line1"><strong>Dalux Field</strong> &middot; Form No. {{ form_number }} &middot; Issue No. 7 &middot; Revision date 02/10/2024</div>
+  <div>SOS location: Permits to work &rarr; Permit to undertake hot work (CS037)</div>
+</div>
+
+<!-- Page 1 header band -->
+<div class="header-band">
+  <div class="cell qr-cell">
+    {% if qr_data_uri %}<img src="{{ qr_data_uri }}" alt="QR">{% endif %}
+  </div>
+  <div class="cell title-cell">
+    <h1 class="doc-title">CS037 &mdash; Permit to Undertake Hot Work</h1>
+  </div>
+  <div class="cell logo-cell">
+    {% if logo_data_uri %}<img src="{{ logo_data_uri }}" alt="Spencer">{% endif %}
+  </div>
+</div>
+
+<!-- Identifier grid -->
+<table class="id-grid">
+  <tr>
+    <td>
+      <div class="id-label">Project no. / SOS</div>
+      <div class="id-value mono {{ project_num|size_class(mono=True) }}">{{ project_num }}</div>
+    </td>
+    <td>
+      <div class="id-label">Site</div>
+      <div class="id-value {{ site_name|size_class }}">{{ site_name }}</div>
+    </td>
+    <td>
+      <div class="id-label">Form no. (Dalux)</div>
+      <div class="id-value mono {{ form_number|size_class(mono=True) }}">{{ form_number }}</div>
+    </td>
+  </tr>
+  <tr>
+    <td>
+      <div class="id-label">Permit no.</div>
+      <div class="id-value mono {{ permit_no|size_class(mono=True) }}">{{ permit_no or '&mdash;' }}</div>
+    </td>
+    <td>
+      <div class="id-label">WPP / Method statement no.</div>
+      <div class="id-value mono {{ wpp_ms_no|size_class(mono=True) }}">{{ wpp_ms_no or '&mdash;' }}</div>
+    </td>
+    <td>
+      <div class="id-label">Permit status</div>
+      <div class="id-value"><span class="status-chip {{ status_class }}">{{ status_label }}</span></div>
+    </td>
+  </tr>
+</table>
+
+<!-- Validity window -->
+<div class="validity-block">
+  <div class="validity-head">
+    Permit validity &mdash; one shift only
+    <span class="tz-note">{{ validity_tz_note }}</span>
+  </div>
+  <div class="validity-body">
+    <div class="v-cell">
+      <div class="v-label">From</div>
+      <div class="v-value">{{ from_display }}<span class="tz">{{ from_tz }}</span></div>
+    </div>
+    <div class="v-cell">
+      <div class="v-label">To</div>
+      <div class="v-value">{{ to_display }}<span class="tz">{{ to_tz }}</span></div>
+    </div>
+    <div class="v-cell v-duration">
+      <div class="v-label">Duration</div>
+      <div class="v-value">{{ duration }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- Permit Controller authorisation -->
+<div class="section">
+  <div class="section-head">
+    Permit Controller authorisation
+    <span class="sub">Issued before work commences</span>
+  </div>
+  <div class="section-body">
+    <div class="sig-body" style="margin-bottom: 8pt;">
+      The Permit Controller confirms the following parts have been completed in full and signs below before handing over this document. Parts A, B, C and D must be completed.
+    </div>
+    <div class="sig-block">
+      <div class="sig-cell sig-left">
+        <div class="sig-role">Signed by Permit Controller</div>
+        {% if sig_permit_controller.sig_src %}
+          <img class="sig-img-real" src="{{ sig_permit_controller.sig_src }}" alt="Signature">
+        {% else %}
+          <div class="sig-img"><span class="missing-note">Signature not synced</span></div>
+        {% endif %}
+        <div class="sig-caption">
+          <span class="name">{{ sig_permit_controller.name }}</span>
+          {% if sig_permit_controller.ts %}<div class="ts">Captured {{ sig_permit_controller.ts }}</div>{% endif %}
+        </div>
+      </div>
+      <div class="sig-cell sig-right">
+        <div class="sig-role">Permit Controller checklist</div>
+        <div class="sig-body">
+          <strong>Part A</strong> &mdash; Description of work / location / equipment<br>
+          <strong>Part B</strong> &mdash; Precautions to be taken<br>
+          <strong>Part C</strong> &mdash; Signature of Person in charge / Supervisor<br>
+          <strong>Part D</strong> &mdash; Persons involved in hot works
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Part A -->
+<div class="section">
+  <div class="section-head">
+    Part A &mdash; Description of work, location &amp; equipment
+    <span class="sub">Completed by Person in charge of operation</span>
+  </div>
+  <div class="section-body no-pad">
+    <table class="narrative-table">
+      <tr>
+        <td class="label">Description of work<br>and location</td>
+        <td class="content">{{ part_a_description or '&mdash;' }}</td>
+      </tr>
+      <tr>
+        <td class="label">Details of equipment<br>to be used</td>
+        <td class="content">{{ part_a_equipment or '&mdash;' }}</td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<!-- Part B - precautions -->
+<div class="section">
+  <div class="section-head">
+    Part B &mdash; Precautions to be taken
+    <span class="sub">13 controls &middot; completed by Person in charge of operation</span>
+  </div>
+  <div class="section-body no-pad">
+    <table class="precaution-table">
+      {% for p in precautions %}
+      <tr>
+        <td class="num">{{ p.num }}</td>
+        <td class="label">{{ p.text }}</td>
+        <td class="state"><span class="state-pill {{ p.pill_class }}">{{ p.pill_label }}</span></td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+
+<!-- Part C -->
+<div class="section">
+  <div class="section-head">
+    Part C &mdash; Area certified safe for hot work
+    <span class="sub">Pre-work inspection &middot; signed by Person in charge of operation / Supervisor</span>
+  </div>
+  <div class="section-body">
+    <div class="sig-body" style="margin-bottom: 8pt;">
+      The area has been inspected and is certified safe for the above work to take place, provided the
+      above-mentioned precautions are taken.
+    </div>
+    <div class="sig-block">
+      <div class="sig-cell sig-left">
+        <div class="sig-role">Signed &mdash; Person in charge / Supervisor</div>
+        {% if sig_part_c.sig_src %}
+          <img class="sig-img-real" src="{{ sig_part_c.sig_src }}" alt="Signature">
+        {% else %}
+          <div class="sig-img"><span class="missing-note">Signature not synced</span></div>
+        {% endif %}
+        <div class="sig-caption">
+          <span class="name">{{ sig_part_c.name }}</span>
+          {% if sig_part_c.ts %}<div class="ts">Captured {{ sig_part_c.ts }}</div>{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Part D - repeating persons -->
+<div class="section">
+  <div class="section-head">
+    Part D &mdash; Persons involved in hot work
+    <span class="sub">Each worker acknowledges they have accepted and understood the permit controls</span>
+  </div>
+  <div class="section-body">
+    {% if part_d_persons %}
+      {% for person in part_d_persons %}
+      <div class="person-card">
+        <div class="person-head">Person {{ person.num }} &middot; permit controls accepted and understood</div>
+        <div class="person-body">
+          <div class="pb-left">
+            {% if person.sig_src %}
+              <img class="sig-img-real" src="{{ person.sig_src }}" alt="Signature">
+            {% else %}
+              <div class="sig-img"><span class="missing-note">Signature not synced</span></div>
+            {% endif %}
+            <div class="sig-caption">
+              <span class="name">{{ person.name }}</span>
+            </div>
+          </div>
+          <div class="pb-right">
+            <div class="position-label">Position</div>
+            <div class="position-value">{{ person.position }}</div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <p>No persons acknowledged &mdash; Part D not completed.</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Part E -->
+<div class="section">
+  <div class="section-head">
+    Part E &mdash; Work completion
+    <span class="sub">Inspected for ignition sources one hour after hot works finished</span>
+  </div>
+  <div class="section-body">
+    <div class="sig-body" style="margin-bottom: 8pt;">
+      The work is completed and the area has been inspected for ignition sources at least one hour after
+      the hot works finished.
+    </div>
+    <div class="sig-block">
+      <div class="sig-cell sig-left">
+        <div class="sig-role">Signed &mdash; Completion</div>
+        {% if sig_part_e.sig_src %}
+          <img class="sig-img-real" src="{{ sig_part_e.sig_src }}" alt="Signature">
+        {% else %}
+          <div class="sig-img"><span class="missing-note">Signature not synced</span></div>
+        {% endif %}
+        <div class="sig-caption">
+          <span class="name">{{ sig_part_e.name }}</span>
+          {% if sig_part_e.ts %}<div class="ts">Captured {{ sig_part_e.ts }}</div>{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Provenance -->
+<div class="provenance">
+  Generated from Dalux Field &middot; Form ID <span class="mono">{{ form_id }}</span> &middot;
+  Form No. {{ form_number }} &middot; Status: {{ status }} &middot; Created {{ created_display }} by {{ creator_name }} &middot; Modified {{ modified_display }} by {{ modifier_name }}
+</div>
+
+</body>
+</html>

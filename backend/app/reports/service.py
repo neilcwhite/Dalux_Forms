@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from weasyprint import HTML
 from app.config import settings
-from app.reports import cs053
+from app.reports import cs053, cs037
 
 # --- Paths ---
 BACKEND_ROOT = Path(__file__).parent.parent.parent
@@ -30,8 +30,10 @@ PHOTO_CACHE.mkdir(exist_ok=True)
 REPORTS_CACHE.mkdir(exist_ok=True)
 
 # --- Template registry ---
+# Key = exact Dalux template_name string from DLX_2_forms.template_name.
 TEMPLATE_HANDLERS = {
-    "Weekly Safety inspection": cs053,  # CS053
+    "Weekly Safety inspection": cs053,
+    "Permit to Undertake Hot Work": cs037,
 }
 
 
@@ -75,7 +77,10 @@ def generate_report(db: Session, form_id: str) -> tuple[bytes, str, int]:
     # 2. Cache check
     cache_key = _cache_key(form_id, form_meta["modified"])
     cache_path = REPORTS_CACHE / f"{cache_key}.pdf"
-    filename = _build_filename(form_meta)
+    if hasattr(handler, "build_filename"):
+        filename = handler.build_filename(db, form_meta)
+    else:
+        filename = _build_filename(form_meta)
 
     if cache_path.exists():
         pdf_bytes = cache_path.read_bytes()
