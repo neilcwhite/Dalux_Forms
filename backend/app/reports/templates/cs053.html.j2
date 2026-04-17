@@ -13,8 +13,18 @@
      state pill, data quality banner, provenance) is inherited from there.
      ====================================================================== */
 
-  /* ---------- Summary strip (CS053-specific dashboard cells) ---------- */
-  .summary-strip { display: table; width: 100%; border-spacing: 4px; margin: 8pt 0; }
+  /* ---------- Summary strip (CS053-specific dashboard cells) ----------
+     border-spacing: 0 so the strip's left/right edges line up flush with
+     the identifier grid and category boxes above/below. Cells touch each
+     other but are visually separated by their own 1px Spencer Blue border. */
+  .summary-strip {
+    display: table;
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: 8pt 0;
+  }
   .summary-cell {
     display: table-cell;
     padding: 7pt 8pt;
@@ -23,6 +33,7 @@
     background: var(--bg-alt);
     width: 20%;
   }
+  .summary-cell + .summary-cell { border-left: none; }
   .summary-cell .sc-label {
     font-size: 7.5pt;
     letter-spacing: 0.4px;
@@ -46,6 +57,8 @@
     display: table;
     width: 100%;
     table-layout: fixed;
+    border-collapse: separate;
+    border-spacing: 0;
     background: var(--spencer-blue);
     color: #fff;
   }
@@ -84,6 +97,8 @@
     display: table;
     width: 100%;
     table-layout: fixed;
+    border-collapse: separate;
+    border-spacing: 0;
     border-bottom: 1px solid var(--divider-soft);
   }
   .category-items > div:last-child { border-bottom: none; }
@@ -107,7 +122,10 @@
   }
   .photo-count-more { font-size: 7pt; color: var(--spencer-blue); margin-top: 3pt; font-weight: 600; }
   .item-owner { width: 38px; text-align: center; vertical-align: middle; padding: 4pt 4pt !important; }
-  .item-state { width: 80px; text-align: right; padding-right: 14pt !important; }
+  /* Widened from 80px + removed the 14pt right-padding override so the
+     52px min-width state pill fits comfortably without overflowing the
+     category-items right border. */
+  .item-state { width: 100px; text-align: right; }
   .owner-chip {
     display: inline-block;
     background: var(--bg-alt);
@@ -356,13 +374,6 @@
   <div class="summary-cell na"><div class="sc-label">N/A</div><div class="sc-value">{{ total_na }}</div></div>
   <div class="summary-cell"><div class="sc-label">Photos</div><div class="sc-value">{{ total_photos }}</div></div>
 </div>
-
-{% if dq_warnings %}
-<div class="dq-banner">
-  <div class="dq-title">Data quality notes</div>
-  <ul>{% for w in dq_warnings %}<li>{{ w }}</li>{% endfor %}</ul>
-</div>
-{% endif %}
 
 {% for cat in categories %}
 <section class="category">
