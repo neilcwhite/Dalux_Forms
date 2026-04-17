@@ -436,11 +436,13 @@ def render_html(payload: dict) -> str:
 
 
 def build_filename(db: Session, form_meta) -> str:
-    """CS037 filename: {yyyy-mm-dd}_CS037_{SiteNameSanitised}_{formId}.pdf
+    """CS037 filename: {yyyy-mm-dd}_CS037_{SiteNameSanitised}_{originator-email}.pdf
 
     Date is the permit validity From (Europe/London), not form creation date.
     Fallback to form.created if the From UDF is missing. Site is projectName-first
-    (same choice as display), sanitised to alphanumeric only.
+    (same choice as display), sanitised to alphanumeric only. Originator email
+    comes from the DLX_2_users row for createdBy_userId; falls back to formId
+    if the user has no email on file.
     """
     form_id = form_meta["formId"]
 
@@ -472,4 +474,12 @@ def build_filename(db: Session, form_meta) -> str:
         site_raw = row["projectName"] or row["sheq_name"]
     site_clean = _sanitise_site(site_raw) or "site"
 
-    return f"{date_str}_CS037_{site_clean}_{form_id}.pdf"
+    # Originator email (from the service.py form_meta join).
+    # Strip filesystem-reserved chars defensively; keep @ and dots.
+    email = (form_meta.get("creator_email") or "").strip()
+    if email:
+        tail = re.sub(r'[<>:"/\\|?*]', "", email)
+    else:
+        tail = form_id
+
+    return f"{date_str}_CS037_{site_clean}_{tail}.pdf"

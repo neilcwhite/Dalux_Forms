@@ -53,7 +53,8 @@ def generate_report(db: Session, form_id: str) -> tuple[bytes, str, int]:
                COALESCE(s.site_name, p.projectName) AS site_display,
                s.sos_number,
                u.firstName AS creator_first,
-               u.lastName  AS creator_last
+               u.lastName  AS creator_last,
+               u.email     AS creator_email
         FROM DLX_2_forms f
         LEFT JOIN DLX_2_projects p
           ON f.projectId COLLATE utf8mb4_unicode_ci = p.projectId COLLATE utf8mb4_unicode_ci

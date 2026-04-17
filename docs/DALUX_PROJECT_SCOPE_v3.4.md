@@ -222,6 +222,8 @@ Each new template = chat session for design, Claude Code session to wire in.
 
 10. **CS037 site-source deviation from CS053 convention** — CS037 display + filename use `DLX_2_projects.projectName` first (falling back to `sheq_sites.site_name`), whereas CS053 uses `sheq_sites.site_name` first. Reason: CS037's identifier grid already shows the SOS number in a dedicated cell, so duplicating a SOS-prefixed site name would waste space and force auto-shrink. Family B (permit) design decision per `docs/template-design-playbook.md` "When to deviate". Only affects the CS037 builder; CS053 unchanged.
 
+11. **Calibri font dependency on production hosts** — CS053 and CS037 templates use a Calibri-led font stack (`"Calibri", "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif`) to match Spencer's company font. WeasyPrint renders with whatever is installed on the host; if Calibri is missing the stack falls through to Segoe UI / Helvetica Neue / Arial, which changes kerning and line breaks. **Implications for the dev team productionising this:** Windows hosts with Microsoft Office already have Calibri. Linux hosts (likely containerised) will not — install the Carlito font (open-source, metrics-compatible with Calibri — available as `fonts-crosextra-carlito` on Debian/Ubuntu) or copy the Calibri `.ttf` files into the image. The Docker image in `backend/Dockerfile` currently does neither; add a `RUN apt-get install -y fonts-crosextra-carlito` line before rolling out container-hosted PDF generation.
+
 ---
 
 ## Reference Forms

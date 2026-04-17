@@ -378,9 +378,15 @@ export default function FormsPage() {
           <button
             onClick={downloadSelectedAsZip}
             disabled={bulkBusy}
-            className="px-4 py-1.5 text-sm font-semibold bg-[#233E99] text-white rounded-full hover:bg-[#1a2f7a] disabled:opacity-60"
+            className="inline-flex items-center gap-2 px-4 py-1.5 text-sm font-semibold bg-[#233E99] text-white rounded-full hover:bg-[#1a2f7a] disabled:opacity-60 disabled:cursor-wait"
           >
-            {bulkBusy ? "Zipping…" : `Download ${selected.size} as ZIP`}
+            {bulkBusy && (
+              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" opacity="0.25" />
+                <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+              </svg>
+            )}
+            {bulkBusy ? "Generating ZIP…" : `Download ${selected.size} as ZIP`}
           </button>
         </div>
       )}
@@ -398,6 +404,7 @@ function FormRowView({
   onToggle: () => void;
 }) {
   const queryClient = useQueryClient();
+  const [downloading, setDownloading] = useState(false);
   const created = new Date(form.created).toLocaleDateString("en-GB");
   const modified = new Date(form.modified).toLocaleDateString("en-GB");
   const lastDownload = form.last_downloaded_at
@@ -412,6 +419,7 @@ function FormRowView({
       );
       if (!ok) return;
     }
+    setDownloading(true);
     try {
       const resp = await fetch(`/api/forms/${form.formId}/download`);
       if (!resp.ok) {
@@ -432,6 +440,8 @@ function FormRowView({
       queryClient.invalidateQueries({ queryKey: ["forms"] });
     } catch (e) {
       alert(`Download error: ${(e as Error).message}`);
+    } finally {
+      setDownloading(false);
     }
   }
 
@@ -492,9 +502,16 @@ function FormRowView({
         {form.has_custom_report ? (
           <button
             onClick={handleDownload}
-            className="px-3 py-1 text-xs font-semibold bg-[#233E99] text-white rounded hover:bg-[#1a2f7a]"
+            disabled={downloading}
+            className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold bg-[#233E99] text-white rounded hover:bg-[#1a2f7a] disabled:opacity-70 disabled:cursor-wait"
           >
-            Download PDF
+            {downloading && (
+              <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" opacity="0.25" />
+                <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+              </svg>
+            )}
+            {downloading ? "Generating…" : "Download PDF"}
           </button>
         ) : (
           <span className="text-xs text-gray-400" title="No custom report template configured for this form type">
