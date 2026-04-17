@@ -330,7 +330,7 @@ The `_find_asset()` helper in `service.py` resolves by prefix, so filenames are 
 Every rendered PDF must use this pattern:
 
 ```
-{yyyy-mm-dd}_{FORM_CODE}_{SiteNameSanitised}_{formId}.pdf
+{yyyy-mm-dd}_{FORM_CODE}_{SiteNameSanitised}.pdf
 ```
 
 Where:
@@ -340,10 +340,14 @@ Where:
   - Records: session date
   - Fallback: form `created` date
 - **FORM_CODE** = first token of `DLX_2_forms.number`, e.g. `CS037` from `CS037_8`
-- **SiteNameSanitised** = `sheq_sites.site_name` (or `DLX_2_projects.projectName` fallback) with spaces and non-alphanumerics stripped
-- **formId** = full `S...` Dalux identifier — guarantees uniqueness since form numbers aren't globally unique
+- **SiteNameSanitised** = `sheq_sites.site_name` (or `DLX_2_projects.projectName` fallback) with spaces and non-alphanumerics stripped. This is the same sheq-first rule as the on-page Site cell — filename and display must agree.
 
-Example: `2026-03-13_CS037_MenaiBridge_S427377143454894080.pdf`
+**Deliberately omitted:** the Dalux formId and the form-completer's email address. Both were tried earlier (email as an identifier tail, formId for uniqueness) and both made filenames ugly without helping the reader. If two forms of the same code are generated for the same site on the same day, the browser will suffix `(1)`, `(2)` on the client side. If shared-drive archival later requires guaranteed uniqueness, the dev team can append a hash to the filename at deployment time — but the human-facing filename must stay this short.
+
+Examples:
+- `2026-03-13_CS037_C2142MenaiBridgePhaseII.pdf`
+- `2026-04-02_CS053_C2118CarringtonPRU.pdf`
+- `2026-01-23_CS053_C2111NESYReplacementofSteelDockGate.pdf`
 
 ---
 

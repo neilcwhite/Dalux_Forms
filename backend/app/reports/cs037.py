@@ -440,11 +440,10 @@ def render_html(payload: dict) -> str:
 
 def build_filename(db: Session, form_meta) -> str:
     """Filename per design system §Filename pattern:
-        {yyyy-mm-dd}_CS037_{SiteNameSanitised}_{formId}.pdf
+        {yyyy-mm-dd}_CS037_{SiteNameSanitised}.pdf
 
     Date is the permit validity From (Europe/London), fallback to form.created.
-    Site name follows the design system rule: sheq_sites.site_name first,
-    projectName fallback. formId guarantees uniqueness.
+    Site follows the sheq-first rule shared with the on-page Site cell.
     """
     form_id = form_meta["formId"]
 
@@ -476,4 +475,4 @@ def build_filename(db: Session, form_meta) -> str:
         site_raw = row["sheq_name"] or row["projectName"]
     site_clean = _sanitise_site(site_raw) or "site"
 
-    return f"{date_str}_CS037_{site_clean}_{form_id}.pdf"
+    return f"{date_str}_CS037_{site_clean}.pdf"
