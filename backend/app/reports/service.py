@@ -49,12 +49,17 @@ def generate_report(db: Session, form_id: str) -> tuple[bytes, str, int]:
         SELECT f.formId, f.projectId, f.number, f.template_name, f.status,
                f.created, f.modified,
                COALESCE(s.site_name, p.projectName) AS site_display,
-               s.sos_number
+               s.sos_number,
+               u.firstName AS creator_first,
+               u.lastName  AS creator_last
         FROM DLX_2_forms f
         LEFT JOIN DLX_2_projects p
           ON f.projectId COLLATE utf8mb4_unicode_ci = p.projectId COLLATE utf8mb4_unicode_ci
         LEFT JOIN sheq_sites s
           ON f.projectId COLLATE utf8mb4_unicode_ci = s.dalux_id COLLATE utf8mb4_unicode_ci
+        LEFT JOIN DLX_2_users u
+          ON f.createdBy_userId COLLATE utf8mb4_unicode_ci = u.userId COLLATE utf8mb4_unicode_ci
+         AND f.projectId COLLATE utf8mb4_unicode_ci = u.projectId COLLATE utf8mb4_unicode_ci
         WHERE f.formId = :fid
     """), {"fid": form_id}).mappings().first()
 
@@ -137,11 +142,13 @@ def _cache_key(form_id: str, modified: datetime) -> str:
 
 
 def _build_filename(form_meta) -> str:
-    """yyyy-mm-dd_FormType_SiteName_FormID.pdf"""
+    """yyyy-mm-dd_FormType_SiteName_CreatorName.pdf"""
     created: datetime = form_meta["created"]
     date_str = created.strftime("%Y-%m-%d") if created else "unknown-date"
     form_type = (form_meta.get("number") or form_meta["template_name"]).split("_")[0]
     site = (form_meta.get("site_display") or "unknown-site")
-    # Strip problematic filename chars
+    fn = (form_meta.get("creator_first") or "").strip()
+    ln = (form_meta.get("creator_last") or "").strip()
+    creator = " ".join(p.capitalize() for p in f"{fn} {ln}".split()) or "unknown-user"
     safe = lambda s: "".join(c for c in s if c.isalnum() or c in " -_").strip().replace(" ", "_")
-    return f"{date_str}_{safe(form_type)}_{safe(site)}_{form_meta['formId']}.pdf"
+    return f"{date_str}_{safe(form_type)}_{safe(site)}_{safe(creator)}.pdf"

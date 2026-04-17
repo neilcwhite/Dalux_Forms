@@ -71,6 +71,7 @@ export interface SiteFormSummaryEntry {
   templates: SiteTemplateSummary[];
   total_forms: number;
   undownloaded_forms: number;
+  stale_undownloaded: number;
 }
 
 export type SiteFormSummary = Record<string, SiteFormSummaryEntry>;

@@ -249,25 +249,37 @@ export default function FormsPage() {
               const summaryEntry = siteSummaryQuery.data?.[s.dalux_id];
               const totalForms = summaryEntry?.total_forms ?? 0;
               const undownloaded = summaryEntry?.undownloaded_forms ?? 0;
+              const stale = summaryEntry?.stale_undownloaded ?? 0;
               const hasNoForms = totalForms === 0;
-              const needsAttention = undownloaded > 0;
+              const isStale = stale > 0;
+              const isPending = undownloaded > 0 && !isStale;
+              const isCurrent = totalForms > 0 && undownloaded === 0;
 
               let stateClasses: string;
+              let badgeClasses = "";
               if (selected) {
-                stateClasses = "bg-[#233E99] text-white border-[#233E99]";
+                stateClasses = "bg-[#233E99] text-white border-2 border-[#233E99]";
               } else if (hasNoForms) {
-                stateClasses = "bg-gray-50 text-gray-400 border-gray-200 hover:border-gray-400";
-              } else if (needsAttention) {
+                stateClasses = "bg-gray-50 text-gray-400 border-2 border-gray-200 hover:border-gray-400";
+              } else if (isStale) {
+                stateClasses = "bg-white text-gray-700 border-2 border-red-500 hover:bg-red-50";
+                badgeClasses = "bg-red-100 text-red-700";
+              } else if (isPending) {
                 stateClasses = "bg-white text-gray-700 border-2 border-amber-500 hover:bg-amber-50";
+                badgeClasses = "bg-amber-100 text-amber-700";
+              } else if (isCurrent) {
+                stateClasses = "bg-white text-gray-700 border-2 border-green-500 hover:bg-green-50";
               } else {
-                stateClasses = "bg-white text-gray-700 border border-gray-300 hover:border-[#233E99]";
+                stateClasses = "bg-white text-gray-700 border-2 border-gray-300 hover:border-[#233E99]";
               }
 
               const tooltip = hasNoForms
                 ? "No downloadable forms"
-                : needsAttention
-                  ? `${undownloaded} of ${totalForms} form${totalForms === 1 ? "" : "s"} not yet downloaded`
-                  : `${totalForms} form${totalForms === 1 ? "" : "s"} — all downloaded`;
+                : isStale
+                  ? `${stale} undownloaded form${stale === 1 ? "" : "s"} modified more than 7 days ago (of ${totalForms} total)`
+                  : isPending
+                    ? `${undownloaded} of ${totalForms} form${totalForms === 1 ? "" : "s"} not yet downloaded`
+                    : `${totalForms} form${totalForms === 1 ? "" : "s"} — all downloaded`;
 
               return (
                 <button
@@ -277,8 +289,10 @@ export default function FormsPage() {
                   className={`px-2.5 py-1 text-xs rounded transition-colors ${stateClasses}`}
                 >
                   {s.sos_number} · {s.site_name}
-                  {needsAttention && !selected && (
-                    <span className="ml-1 text-amber-600 font-semibold">●</span>
+                  {!selected && (isStale || isPending) && (
+                    <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${badgeClasses}`}>
+                      {undownloaded}
+                    </span>
                   )}
                 </button>
               );

@@ -1,7 +1,7 @@
 """FastAPI application entry point."""
 import io
 import zipfile
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Optional
 
 from fastapi import FastAPI, Depends, Query, HTTPException
@@ -65,7 +65,7 @@ def site_form_summary(
     placeholders = ",".join(f":t{i}" for i in range(len(template_list)))
     binds = {f"t{i}": tn for i, tn in enumerate(template_list)}
     forms = db.execute(text(f"""
-        SELECT f.projectId, f.template_name, f.formId, f.number
+        SELECT f.projectId, f.template_name, f.formId, f.number, f.modified
         FROM DLX_2_forms f
         WHERE (f.deleted = 0 OR f.deleted IS NULL)
           AND f.template_name IN ({placeholders})
@@ -84,6 +84,8 @@ def site_form_summary(
         ).mappings().all():
             downloaded.add(dr["form_id"])
 
+    stale_cutoff = datetime.now() - timedelta(days=7)
+
     summary: dict[str, dict] = {}
     for r in forms:
         pid = r["projectId"]
@@ -91,10 +93,13 @@ def site_form_summary(
             "templates": {},
             "total_forms": 0,
             "undownloaded_forms": 0,
+            "stale_undownloaded": 0,
         })
         entry["total_forms"] += 1
         if r["formId"] not in downloaded:
             entry["undownloaded_forms"] += 1
+            if r["modified"] and r["modified"] < stale_cutoff:
+                entry["stale_undownloaded"] += 1
         tpl = entry["templates"].setdefault(r["template_name"], {
             "template_name": r["template_name"],
             "short_code": (r["number"] or r["template_name"]).split("_")[0],
@@ -107,6 +112,7 @@ def site_form_summary(
             "templates": list(e["templates"].values()),
             "total_forms": e["total_forms"],
             "undownloaded_forms": e["undownloaded_forms"],
+            "stale_undownloaded": e["stale_undownloaded"],
         }
         for pid, e in summary.items()
     }
