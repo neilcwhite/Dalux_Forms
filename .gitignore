@@ -10,6 +10,7 @@ backend/.pytest_cache/
 .env.local
 *.env
 backend/.env
+.env.*.local
 
 # Node / React (for later)
 frontend/node_modules/
@@ -36,6 +37,10 @@ backend/logs/
 # Generated reports (local cache)
 backend/reports_cache/
 backend/photo_cache/
+
+# Docker
+.docker/
+*.dockerfile.log
 
 # Allow example env file
 !.env.example

@@ -1,0 +1,59 @@
+version: '3.9'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: dalux-backend
+    ports:
+      - "8000:8000"
+    environment:
+      # Database configuration
+      DB_HOST: ${DB_HOST:-DBHUB.cspencerltd.co.uk}
+      DB_PORT: ${DB_PORT:-3306}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME:-SHEQ}
+      # Dalux API configuration
+      DALUX_API_KEY: ${DALUX_API_KEY}
+      DALUX_BASE_URL: ${DALUX_BASE_URL:-https://api.daluxbuild.com}
+      # App settings
+      APP_NAME: ${APP_NAME:-Dalux Report Portal}
+      DEBUG: ${DEBUG:-false}
+    volumes:
+      - ./backend/data:/app/backend/data
+      - ./backend/photo_cache:/app/backend/photo_cache
+      - ./backend/reports_cache:/app/backend/reports_cache
+    networks:
+      - dalux-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: dalux-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - dalux-network
+    restart: unless-stopped
+
+networks:
+  dalux-network:
+    driver: bridge
+
+volumes:
+  backend_data:
+  photo_cache:
+  reports_cache:
