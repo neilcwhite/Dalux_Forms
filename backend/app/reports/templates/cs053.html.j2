@@ -121,24 +121,10 @@
     position: relative;
   }
   .photo-count-more { font-size: 7pt; color: var(--spencer-blue); margin-top: 3pt; font-weight: 600; }
-  .item-owner { width: 38px; text-align: center; vertical-align: middle; padding: 4pt 4pt !important; }
   /* Widened from 80px + removed the 14pt right-padding override so the
      52px min-width state pill fits comfortably without overflowing the
      category-items right border. */
   .item-state { width: 100px; text-align: right; }
-  .owner-chip {
-    display: inline-block;
-    background: var(--bg-alt);
-    color: var(--text);
-    font-size: 7.5pt;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-    padding: 3px 7px;
-    border-radius: 10px;
-    min-width: 26px;
-    text-align: center;
-    border: 1px solid var(--divider-soft);
-  }
 
   .finding-inline {
     margin-top: 4pt;
@@ -170,33 +156,192 @@
     border-radius: 2px;
   }
 
-  /* ---------- Findings & Actions table (CS053-specific) ---------- */
-  .actions-section { margin-top: 12pt; break-inside: avoid-page; }
-  table.findings-table { width: 100%; border-collapse: collapse; font-size: 8.5pt; }
-  table.findings-table th {
-    background: var(--bg-alt);
-    padding: 5pt 8pt;
-    text-align: left;
-    border: 1px solid var(--divider);
+  /* ---------- Findings section (CS053-specific) ----------
+     Two layers: a compact summary table (one row per finding) followed
+     by expanded cards (full metadata, description, resolution strip,
+     evidence photos). */
+  .findings-section-head {
+    background: var(--spencer-blue);
+    color: #fff;
+    padding: 8pt 12pt;
+    font-size: 11pt;
     font-weight: 700;
-    font-size: 8pt;
-    color: var(--spencer-blue);
+    margin-top: 16pt;
+    margin-bottom: 12pt;
   }
-  table.findings-table td {
-    padding: 6pt 8pt;
+
+  /* Summary table */
+  .findings-summary-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 8.5pt;
+    margin-bottom: 16pt;
+  }
+  .findings-summary-table th {
+    background: var(--bg-alt);
     border: 1px solid var(--divider);
+    padding: 5pt 8pt;
+    font-weight: 700;
+    text-align: left;
+    color: var(--spencer-blue);
+    font-size: 8pt;
+  }
+  .findings-summary-table td {
+    border: 1px solid var(--divider);
+    padding: 5pt 8pt;
     vertical-align: top;
   }
-  .td-no { width: 24px; text-align: center; font-weight: 700; }
-  .td-none {
-    text-align: center;
-    color: var(--ok-green);
-    font-weight: 600;
-    padding: 12pt 0;
+  .fs-hdr { font-weight: 700; }
+  .fs-item { color: var(--text-muted); font-size: 8pt; margin-top: 2pt; }
+  .fs-meta { font-size: 7.5pt; color: var(--text-muted); margin-top: 1pt; }
+  .fs-none { text-align: center; color: var(--ok-green); font-weight: 600; padding: 12pt 0; }
+  .fs-closed { color: var(--ok-green); font-weight: 600; }
+  .fs-open { color: #B7770D; font-weight: 600; }
+
+  /* Expanded finding cards */
+  .finding-card { border: 1px solid var(--divider); margin-bottom: 14pt; page-break-inside: avoid; }
+  .finding-card-header {
+    background: var(--spencer-blue);
+    color: #fff;
+    padding: 8pt 12pt;
+    display: table;
+    width: 100%;
+    table-layout: fixed;
   }
-  .find-hdr { font-weight: 700; }
-  .find-item { color: var(--text-muted); margin-top: 2pt; }
-  .find-meta { font-size: 8pt; color: var(--text-muted); }
+  .finding-card-header > div { display: table-cell; vertical-align: middle; }
+  .fc-num { font-size: 14pt; font-weight: 700; width: 60pt; }
+  .fc-subject { font-size: 10pt; font-weight: 600; line-height: 1.3; }
+  .fc-sev {
+    width: 70pt;
+    text-align: right;
+    font-size: 8pt;
+    font-weight: 700;
+  }
+  .fc-sev span {
+    display: inline-block;
+    padding: 3pt 10pt;
+    border-radius: 3px;
+    background: rgba(255,255,255,0.2);
+    border: 1px solid rgba(255,255,255,0.4);
+  }
+  .fc-sev span.sev5 { background: var(--err-red); border-color: var(--err-red); }
+  .fc-sev span.sev4 { background: #E07B00; border-color: #E07B00; }
+  .fc-sev span.sev3 { background: #B7770D; border-color: #B7770D; }
+
+  .finding-meta-grid {
+    display: table;
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+  }
+  .fmg-row { display: table-row; }
+  .fmg-cell {
+    display: table-cell;
+    width: 50%;
+    padding: 5pt 10pt;
+    border-right: 1px solid var(--divider);
+    border-bottom: 1px solid var(--divider);
+    font-size: 8.5pt;
+  }
+  .fmg-cell:nth-child(even) { border-right: none; }
+  .fmg-label {
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: 7.5pt;
+    text-transform: uppercase;
+    margin-bottom: 1pt;
+  }
+  .fmg-value { font-weight: 600; }
+  .fmg-closed { color: var(--ok-green); font-weight: 600; }
+  .fmg-open { color: #B7770D; font-weight: 600; }
+
+  .finding-description {
+    padding: 8pt 10pt;
+    font-size: 9pt;
+    line-height: 1.5;
+    border-bottom: 1px solid var(--divider);
+    background: var(--bg-alt);
+  }
+  .fd-label {
+    font-weight: 700;
+    font-size: 7.5pt;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 3pt;
+  }
+
+  .resolution-strip {
+    padding: 5pt 8pt;
+    background: #EAF4EE;
+    border-left: 3px solid var(--ok-green);
+    font-size: 8pt;
+    border-bottom: 1px solid var(--divider);
+  }
+  .res-label { font-weight: 700; color: var(--ok-green); margin-right: 4pt; }
+
+  .finding-photos { padding: 8pt 10pt; }
+  .fp-label {
+    font-weight: 700;
+    font-size: 7.5pt;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 6pt;
+  }
+  .fp-row {
+    display: table;
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 8pt 0;
+  }
+  .fp-cell {
+    display: table-cell;
+    border: 1px solid var(--divider);
+    width: 155pt;
+    vertical-align: top;
+  }
+  .fpc-img {
+    width: 100%;
+    height: 105pt;
+    background: var(--bg-alt);
+    border-bottom: 1px solid var(--divider);
+    position: relative;
+    overflow: hidden;
+  }
+  .fpc-img img { width: 100%; height: 100%; object-fit: cover; }
+  .fpc-missing {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 8pt;
+    color: var(--text-muted);
+  }
+  .fpc-badge {
+    position: absolute;
+    top: 4pt;
+    left: 4pt;
+    background: var(--spencer-blue);
+    color: #fff;
+    font-size: 7pt;
+    font-weight: 700;
+    font-family: monospace;
+    padding: 2pt 5pt;
+    border-radius: 2px;
+  }
+  .fpc-src {
+    position: absolute;
+    top: 4pt;
+    right: 4pt;
+    background: #FDECEA;
+    color: var(--err-red);
+    border: 1px solid var(--err-red);
+    font-size: 6pt;
+    font-weight: 700;
+    padding: 1pt 4pt;
+    border-radius: 2px;
+  }
+  .fpc-caption { padding: 3pt 5pt; font-size: 7.5pt; color: var(--text-muted); }
 
   /* ---------- Signoff block + close-call note (CS053-specific) ---------- */
   .signoff-block {
@@ -412,9 +557,6 @@
           {% if item.photos|length > 1 %}<div class="photo-count-more">+{{ item.photos|length - 1 }} more</div>{% endif %}
         {% endif %}
       </div>
-      <div class="item-owner">
-        {% if item.state %}<span class="owner-chip">{{ inspector_initials }}</span>{% endif %}
-      </div>
       <div class="item-state">
         {% set pc = {'Green': 'yes', 'Red': 'no', 'N/A': 'na'}.get(item.state, 'blank') %}
         <span class="state-pill {{ pc }}">{{ item.state or '—' }}</span>
@@ -425,30 +567,118 @@
 </section>
 {% endfor %}
 
-<section class="actions-section">
-  <div class="section-head">Findings &amp; actions</div>
-  <table class="findings-table">
-    <thead><tr><th style="width:24px">No.</th><th>Finding</th><th>Action to be taken</th><th>Who by</th><th>Closed (date)</th><th>Close call</th></tr></thead>
-    <tbody>
-      {% for f in findings %}
-      <tr>
-        <td class="td-no">{{ loop.index }}</td>
-        <td>
-          <div class="find-hdr">{{ f.number }} &mdash; {{ f.subject }}{% if f.evidence_nos %} (Evidence: {{ f.evidence_nos|join(', ') }}){% endif %}</div>
-          <div class="find-item">Item: {{ f.item_ref }}</div>
-          <div class="find-meta">Severity: {{ f.severity }}</div>
-        </td>
-        <td>(see Dalux task record)</td>
-        <td>{{ f.assignee }}</td>
-        <td>{{ f.closed_date or '—' }}</td>
-        <td>—</td>
-      </tr>
-      {% else %}
-      <tr><td colspan="6" class="td-none">No findings raised during this inspection.</td></tr>
+{# --- Findings & actions: summary table + expanded cards --- #}
+{% if findings %}
+<div class="findings-section-head">
+  Findings &amp; Actions &mdash; {{ findings|length }} issue{% if findings|length != 1 %}s{% endif %} raised
+</div>
+
+<table class="findings-summary-table">
+  <thead>
+    <tr>
+      <th style="width:22pt">No.</th>
+      <th>Finding</th>
+      <th>Action taken</th>
+      <th>Who by</th>
+      <th>Closed</th>
+      <th>Close call</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for f in findings %}
+    <tr>
+      <td style="text-align:center;font-weight:700">{{ loop.index }}</td>
+      <td>
+        <div class="fs-hdr">{{ f.number }} &mdash; {{ f.subject }}{% if f.evidence_nos %} (Evidence: {{ f.evidence_nos|join(', ') }}){% endif %}</div>
+        <div class="fs-item">Item: {{ f.item_ref }}</div>
+        <div class="fs-meta">Severity: {{ f.severity }}{% if f.subcategory %} &middot; {{ f.subcategory }}{% endif %}</div>
+      </td>
+      <td>{{ f.resolution_message or '(see Dalux task record)' }}</td>
+      <td>{{ f.assignee }}</td>
+      <td>{% if f.closed_date %}<span class="fs-closed">&#10003; {{ f.closed_date }}</span>{% else %}<span class="fs-open">Open</span>{% endif %}</td>
+      <td>&mdash;</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% for f in findings %}
+<div class="finding-card">
+  <div class="finding-card-header">
+    <div class="fc-num">{{ f.number }}</div>
+    <div class="fc-subject">{{ f.subject }}</div>
+    <div class="fc-sev"><span class="{{ f.sev_class }}">Severity {{ f.severity }}</span></div>
+  </div>
+
+  <div class="finding-meta-grid">
+    <div class="fmg-row">
+      <div class="fmg-cell"><div class="fmg-label">Checklist item</div><div class="fmg-value">{{ f.item_ref or '—' }}</div></div>
+      <div class="fmg-cell"><div class="fmg-label">Subcategory</div><div class="fmg-value">{{ f.subcategory or '—' }}</div></div>
+    </div>
+    <div class="fmg-row">
+      <div class="fmg-cell"><div class="fmg-label">Raised by</div><div class="fmg-value">{{ f.raised_by or '—' }}</div></div>
+      <div class="fmg-cell"><div class="fmg-label">Assigned to</div><div class="fmg-value">{{ f.assignee or '—' }}</div></div>
+    </div>
+    <div class="fmg-row">
+      <div class="fmg-cell"><div class="fmg-label">Date raised</div><div class="fmg-value">{{ f.date_raised or '—' }}</div></div>
+      <div class="fmg-cell"><div class="fmg-label">Deadline</div><div class="fmg-value">{{ f.deadline or '—' }}</div></div>
+    </div>
+    <div class="fmg-row">
+      <div class="fmg-cell"><div class="fmg-label">Work package</div><div class="fmg-value">{{ f.work_package or '—' }}</div></div>
+      <div class="fmg-cell">
+        <div class="fmg-label">Status</div>
+        <div class="fmg-value">
+          {% if f.closed_date %}<span class="fmg-closed">&#10003; Approved / Closed &mdash; {{ f.closed_date }}</span>
+          {% else %}<span class="fmg-open">Open</span>{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if f.description %}
+  <div class="finding-description">
+    <div class="fd-label">Description</div>
+    {{ f.description }}
+  </div>
+  {% endif %}
+
+  {% if f.resolution_message %}
+  <div class="resolution-strip">
+    <span class="res-label">Resolution{% if f.resolution_date %} ({{ f.resolution_date }}{% if f.resolution_by %} &mdash; {{ f.resolution_by }}{% endif %}){% endif %}:</span>
+    {{ f.resolution_message }}
+  </div>
+  {% endif %}
+
+  {% if f.evidence %}
+  <div class="finding-photos">
+    <div class="fp-label">Evidence photos ({{ f.evidence|length }})</div>
+    <div class="fp-row">
+      {% for e in f.evidence %}
+      <div class="fp-cell">
+        <div class="fpc-img">
+          {% if e.local_src %}
+            <img src="{{ e.local_src }}" alt="Photo #{{ e.photo_no }}">
+          {% else %}
+            <div class="fpc-missing">Photo #{{ e.photo_no }}<br>not downloaded</div>
+          {% endif %}
+          <div class="fpc-badge">#{{ e.photo_no }}</div>
+          <div class="fpc-src">EVIDENCE</div>
+        </div>
+        <div class="fpc-caption">{{ f.number }} &middot; Photo {{ loop.index }} of {{ f.evidence|length }}</div>
+      </div>
       {% endfor %}
-    </tbody>
-  </table>
-</section>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endfor %}
+{% else %}
+<div style="text-align:center;color:var(--ok-green);font-weight:600;padding:14pt 0;">
+  No findings raised during this inspection.
+</div>
+{% endif %}
+
 <div class="closecall-note">Please confirm that all Close Calls identified in this report have been uploaded onto the Close Call System (https://thespencergroup.co.uk/closecall/)</div>
 <div class="signoff-block">
   <div>

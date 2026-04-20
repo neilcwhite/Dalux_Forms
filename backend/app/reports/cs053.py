@@ -68,6 +68,23 @@ CS053_CATEGORY_BY_NAME = {
 }
 
 
+def _sev_class(severity) -> str:
+    """Map severity (string or int, 1-5) to a CSS badge class for the
+    expanded finding cards. Severity 3+ gets a coloured badge; 1-2 stays
+    neutral (the default unlabelled badge style)."""
+    try:
+        s = int(severity or 0)
+    except (ValueError, TypeError):
+        return ""
+    if s >= 5:
+        return "sev5"
+    if s >= 4:
+        return "sev4"
+    if s >= 3:
+        return "sev3"
+    return ""
+
+
 def _resolve_item_state(row) -> str | None:
     """Return canonical state string ('Green'/'Red'/'N/A') from whichever
     column holds it.
@@ -427,7 +444,7 @@ def build_payload(db: Session, form_id: str) -> dict:
     tasks = []
     if insp_date_str:
         tasks = db.execute(text(
-            "SELECT taskId, number, subject, created "
+            "SELECT taskId, number, subject, created, createdBy_userId "
             "FROM DLX_2_tasks "
             "WHERE projectId COLLATE utf8mb4_unicode_ci = :pid COLLATE utf8mb4_unicode_ci "
             "AND `usage` = 'SafetyIssue' AND DATE(created) = :d"
@@ -442,13 +459,52 @@ def build_payload(db: Session, form_id: str) -> dict:
         ), {"tid": t["taskId"]}).mappings().all()
         tudf_map = {r["field_name"]: r["value_reference_value"] or r["value_text"] for r in tudfs}
 
+        # 'assign' action carries the initial assignee, workpackage, deadline,
+        # and the inspector's description of the finding. One query for all.
+        # NOTE: DLX_2_tasks.deadline and .workpackageId do NOT exist on the
+        # tasks table itself — only on task_changes. The handoff's "pull from
+        # DLX_2_tasks.deadline" was incorrect; source them here instead.
         ch = db.execute(text(
-            "SELECT fields_currentResponsible_userId "
+            "SELECT description, fields_currentResponsible_userId, "
+            "       fields_workpackageId, fields_deadline "
             "FROM DLX_2_task_changes WHERE taskId = :tid AND action = 'assign' "
             "ORDER BY timestamp LIMIT 1"
         ), {"tid": t["taskId"]}).mappings().first()
         assignee = resolve_user(ch["fields_currentResponsible_userId"])["fullName"] if ch else ""
 
+        # Description: prefer the 'Description' task UDF if present; fall back
+        # to the 'assign' change's description field. The UDF is absent on
+        # the test forms (SI46/47/48) but leave the lookup in for future
+        # forms that may use it.
+        description = tudf_map.get("Description") or (ch["description"] if ch else "") or ""
+
+        # Workpackage name via join (COLLATE on both sides per project rule).
+        work_package = ""
+        if ch and ch["fields_workpackageId"]:
+            wp = db.execute(text(
+                "SELECT name FROM DLX_2_workpackages "
+                "WHERE workpackageId COLLATE utf8mb4_unicode_ci = :wpid COLLATE utf8mb4_unicode_ci "
+                "LIMIT 1"
+            ), {"wpid": ch["fields_workpackageId"]}).mappings().first()
+            if wp and wp["name"]:
+                work_package = wp["name"]
+
+        deadline = _uk_date(ch["fields_deadline"]) if (ch and ch["fields_deadline"]) else ""
+
+        # Resolution message lives on the 'complete' action, not 'ready'. The
+        # handoff named 'ready' but the test forms (SI46/47/48) never emit
+        # that action — they go assign → complete → approve. Use 'complete'
+        # which contains the close-out description typed by the worker.
+        res = db.execute(text(
+            "SELECT description, modifiedByUserId, timestamp "
+            "FROM DLX_2_task_changes WHERE taskId = :tid AND action = 'complete' "
+            "ORDER BY timestamp DESC LIMIT 1"
+        ), {"tid": t["taskId"]}).mappings().first()
+        resolution_message = (res["description"] or "").strip() if res else ""
+        resolution_by = resolve_user(res["modifiedByUserId"])["fullName"] if res else ""
+        resolution_date = _uk_date(str(res["timestamp"])[:10]) if res else ""
+
+        # Approve action (fields_status='closed') gives the audit-closed date.
         closed = db.execute(text(
             "SELECT timestamp FROM DLX_2_task_changes "
             "WHERE taskId = :tid AND fields_status = 'closed' "
@@ -461,11 +517,25 @@ def build_payload(db: Session, form_id: str) -> dict:
             "FROM DLX_2_task_attachments WHERE taskId = :tid"
         ), {"tid": t["taskId"]}).mappings().all()
 
+        raised_by = resolve_user(t["createdBy_userId"])["fullName"]
+        date_raised = _uk_date(str(t["created"])[:10]) if t["created"] else ""
+
         f = {
             "number": t["number"], "subject": t["subject"],
             "item_ref": tudf_map.get("Safety category", ""),
             "severity": tudf_map.get("Severity", ""),
-            "assignee": assignee, "closed_date": closed_date,
+            "sev_class": _sev_class(tudf_map.get("Severity", "")),
+            "subcategory": tudf_map.get("Safety subcategory", ""),
+            "description": description,
+            "raised_by": raised_by,
+            "assignee": assignee,
+            "date_raised": date_raised,
+            "deadline": deadline,
+            "work_package": work_package,
+            "closed_date": closed_date,
+            "resolution_message": resolution_message,
+            "resolution_by": resolution_by,
+            "resolution_date": resolution_date,
             "evidence": [dict(e) for e in evidence],
         }
         findings.append(f)
@@ -516,14 +586,6 @@ def build_payload(db: Session, form_id: str) -> dict:
                 "local_src": e.get("local_src"),
             })
 
-    dq_warnings = []
-    for cat in categories.values():
-        has_red = any(i["state"] == "Red" for i in cat["items"])
-        if has_red and cat["state"] != "Red":
-            dq_warnings.append(
-                f"Category '{cat['title']}' header recorded as {cat['state']} but contains Red item(s)."
-            )
-
     total_items = sum(len(c["items"]) for c in categories.values())
     total_green = sum(c["green"] for c in categories.values())
     total_red = sum(c["red"] for c in categories.values())
@@ -555,7 +617,6 @@ def build_payload(db: Session, form_id: str) -> dict:
         "insp_date": _uk_date(insp_date),
         "last_insp": _uk_date(last_insp),
         "inspector": inspector_user["fullName"] or created_by["fullName"],
-        "inspector_initials": inspector_user["initials"] if inspector_user["initials"] != "??" else created_by["initials"],
         "accompanied": accompanied_names,
         "companies": company_names,
         "actions_closed": actions_closed,
@@ -564,7 +625,6 @@ def build_payload(db: Session, form_id: str) -> dict:
         "categories": [categories[k] for k in sorted(categories.keys())],
         "findings": findings,
         "all_photos": all_photos,
-        "dq_warnings": dq_warnings,
         "total_items": total_items, "total_green": total_green,
         "total_red": total_red, "total_na": total_na,
         "total_photos": len(all_photos),
