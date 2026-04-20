@@ -40,6 +40,55 @@ CS053_CATEGORY_TITLES = {
     14: "Safety Systems & Culture",
 }
 
+
+def _normalise_cat_name(name: str) -> str:
+    """Normalise a category name for fuzzy matching across form-template
+    variants. The SHEQV2 form version uses 'and' where the canonical titles
+    use '&', 'inc.' where canonical uses 'incl.', and has slightly different
+    spacing/capitalisation. Strip all of that out before comparing."""
+    if not name:
+        return ""
+    s = name.lower()
+    s = s.replace("&", " and ")
+    # Normalise both 'incl' and 'inc.' to the same token
+    s = re.sub(r"\bincl\.?\b", "inc", s)
+    s = re.sub(r"\binc\.", "inc", s)
+    # Collapse anything non-alphanumeric to spaces, then single-space
+    s = re.sub(r"[^a-z0-9]+", " ", s)
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
+
+
+# Reverse lookup keyed on normalised name → category number.
+# Used when a new-format form's category header has no "N. " prefix, so the
+# field_name alone (e.g. "Safe Access/ Egress and Place of Work (inc. Lighting)")
+# has to be matched back to the canonical category number.
+CS053_CATEGORY_BY_NAME = {
+    _normalise_cat_name(title): num for num, title in CS053_CATEGORY_TITLES.items()
+}
+
+
+def _resolve_item_state(row) -> str | None:
+    """Return canonical state string ('Green'/'Red'/'N/A') from whichever
+    column holds it.
+
+    Older form versions (pre-SHEQV2) wrote the state directly into
+    `value_text` as 'Green'/'Red'/'N/A'. The SHEQV2 version writes the
+    state into `value_reference_value` as 'Yes'/'No'/'N/A', with the
+    builder translating Yes→Green, No→Red.
+    """
+    vt = (row["value_text"] or "").strip() if row["value_text"] is not None else ""
+    if vt in ("Green", "Red", "N/A"):
+        return vt
+    vrv = (row["value_reference_value"] or "").strip() if row["value_reference_value"] is not None else ""
+    if vrv == "Yes":
+        return "Green"
+    if vrv == "No":
+        return "Red"
+    if vrv == "N/A":
+        return "N/A"
+    return None
+
 _env = Environment(
     loader=FileSystemLoader(str(TEMPLATE_DIR)),
     autoescape=select_autoescape(["html", "xml"]),
@@ -222,66 +271,116 @@ def build_payload(db: Session, form_id: str) -> dict:
     last_insp = ""
     inspector_uid = None
     accompanied_uids: list[str] = []
-    company_ids: list[str] = []
+    # "subcontractor IDs" — may be company IDs (old forms, 'Companies Observed')
+    # or user IDs (SHEQV2 'Subcontractors Checked'). Resolver below tries both
+    # tables.
+    subcontractor_ids: list[str] = []
     actions_closed = ""
     for r in meta_rows:
         fn = r["field_name"] or ""
+        # Inspector / Accompanied — both form versions store the user ID in
+        # value_relation_userId; COALESCE against value_relation_companyId is
+        # purely defensive in case a future sync variant moves it.
         if fn == "Date" and r["value_date"]:
             insp_date = str(r["value_date"])
         elif fn == "Date of last inspection" and r["value_date"]:
             last_insp = str(r["value_date"])
-        elif fn == "Inspection By" and r["value_relation_userId"]:
-            inspector_uid = r["value_relation_userId"]
-        elif fn == "Accompanied By" and r["value_relation_userId"]:
-            accompanied_uids.append(r["value_relation_userId"])
-        elif fn == "Companies Observed" and r["value_relation_companyId"]:
-            company_ids.append(r["value_relation_companyId"])
+        elif fn == "Inspection By":
+            uid = r["value_relation_userId"] or r["value_relation_companyId"]
+            if uid:
+                inspector_uid = uid
+        elif fn == "Accompanied By":
+            uid = r["value_relation_userId"] or r["value_relation_companyId"]
+            if uid:
+                accompanied_uids.append(uid)
+        elif fn in ("Companies Observed", "Subcontractors Checked"):
+            # Old form: companyId. SHEQV2: userId. Take whichever is populated.
+            sid = r["value_relation_companyId"] or r["value_relation_userId"]
+            if sid:
+                subcontractor_ids.append(sid)
         elif "actions been closed" in fn.lower() and r["value_reference_value"]:
             actions_closed = r["value_reference_value"]
 
     inspector_user = resolve_user(inspector_uid) if inspector_uid else created_by
     accompanied_names = [resolve_user(u)["fullName"] for u in accompanied_uids if u]
+
+    # Resolve each subcontractor ID: try companies first (semantically
+    # correct), fall back to users (SHEQV2 form puts user IDs here).
     company_names = []
-    for cid in company_ids:
+    for sid in subcontractor_ids:
         row = db.execute(text(
             "SELECT name FROM DLX_2_companies "
-            "WHERE companyId COLLATE utf8mb4_unicode_ci = :cid COLLATE utf8mb4_unicode_ci "
+            "WHERE companyId COLLATE utf8mb4_unicode_ci = :sid COLLATE utf8mb4_unicode_ci "
             "LIMIT 1"
-        ), {"cid": cid}).mappings().first()
+        ), {"sid": sid}).mappings().first()
         if row and row["name"]:
             company_names.append(row["name"])
+            continue
+        # Not a company — try resolving as a user. Their display name is
+        # shown as a fallback so the field isn't silently blank.
+        u = resolve_user(sid)
+        if u["fullName"] and u["fullName"] != sid[:10]:
+            company_names.append(u["fullName"])
 
-    state_rows = db.execute(text(
-        "SELECT field_name, value_text, field_key "
-        "FROM DLX_2_form_udfs "
-        "WHERE formId = :fid AND value_text IN ('Green', 'Red', 'N/A') "
-        "ORDER BY field_name"
+    # Pull all UDF rows for this form so we can classify each row as
+    # item / category / neither. Old forms put item states in value_text;
+    # SHEQV2 forms put them in value_reference_value as Yes/No/N/A. The
+    # resolver below handles both.
+    all_udf_rows = db.execute(text(
+        "SELECT field_name, value_text, value_reference_value, field_key "
+        "FROM DLX_2_form_udfs WHERE formId = :fid"
     ), {"fid": form_id}).mappings().all()
+
+    # Item field_name pattern: accepts the old "1.1: Title" (colon after
+    # sub-number) and the SHEQV2 variants "1.1\tTitle" (tab) or "1.1 Title"
+    # (single space). One or more of colon/tab/space after the sub-number.
+    _item_re = re.compile(r"^(\d+)\.(\d+)[:\s]+(.+)$")
+    # Old-format category header: "1. Title"
+    _cat_re = re.compile(r"^(\d+)\.\s+(.+)$")
 
     categories: dict[int, dict] = {}
     items_by_name: dict[str, dict] = {}
-    for r in state_rows:
-        fn = r["field_name"]
-        vt = r["value_text"]
-        m_item = re.match(r"^(\d+)\.(\d+):\s*(.+)$", fn)
-        m_cat = re.match(r"^(\d+)\.\s+(.+)$", fn)
+    for r in all_udf_rows:
+        fn = r["field_name"] or ""
+        state = _resolve_item_state(r)
+        m_item = _item_re.match(fn)
         if m_item:
             cat_num = int(m_item.group(1))
             sub_num = int(m_item.group(2))
-            title = m_item.group(3)
+            title = m_item.group(3).strip()
             cat = categories.setdefault(cat_num, {"num": cat_num, "title": "", "state": None, "items": []})
             item = {
                 "num": f"{cat_num}.{sub_num}", "sort": (cat_num, sub_num),
-                "title": title, "state": vt, "field_name": fn,
+                "title": title, "state": state, "field_name": fn,
                 "field_key": r["field_key"], "photos": [], "findings": [],
             }
             cat["items"].append(item)
             items_by_name[fn] = item
-        elif m_cat:
+            continue
+
+        m_cat = _cat_re.match(fn)
+        if m_cat:
             cat_num = int(m_cat.group(1))
             cat = categories.setdefault(cat_num, {"num": cat_num, "title": "", "state": None, "items": []})
-            cat["title"] = m_cat.group(2)
-            cat["state"] = vt
+            cat["title"] = m_cat.group(2).strip()
+            if state:
+                cat["state"] = state
+            continue
+
+        # No number prefix. SHEQV2 category headers look like plain titles
+        # ("Safe Access/ Egress and Place of Work (inc. Lighting)"). Match
+        # back to a canonical category number via the normalised reverse
+        # lookup — handles 'and' vs '&', 'inc.' vs 'incl.', whitespace
+        # differences, and mixed case.
+        cat_num = CS053_CATEGORY_BY_NAME.get(_normalise_cat_name(fn))
+        if cat_num is None:
+            continue
+        cat = categories.setdefault(cat_num, {"num": cat_num, "title": "", "state": None, "items": []})
+        # Prefer the canonical title — the SHEQV2 variants have spelling
+        # quirks ('inc.' vs 'incl.') that don't match the rest of the doc.
+        cat["title"] = CS053_CATEGORY_TITLES[cat_num]
+        if state:
+            cat["state"] = state
 
     # Bug 2 fix: category-header UDF rows are excluded from state_rows when
     # value_text isn't Green/Red/N/A (e.g. inspector didn't tick the parent
