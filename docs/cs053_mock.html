@@ -1,0 +1,1209 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<title>CS053 — Carrington — 20/03/2026</title>
+<style>
+  :root {
+    --blue: #233E99;
+    --blue-pale: #EEF1FA;
+    --blue-mid: #3A56B8;
+    --green: #2E7D4F;
+    --green-pale: #EAF4EE;
+    --red: #C0392B;
+    --red-pale: #FDECEA;
+    --amber: #B7770D;
+    --amber-pale: #FEF9EC;
+    --na: #8A8A8A;
+    --na-pale: #F4F4F4;
+    --divider: #D8DCE6;
+    --text: #1A1A1A;
+    --text-muted: #555;
+    --bg-alt: #FAFBFD;
+    --font: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: var(--font);
+    font-size: 10pt;
+    color: var(--text);
+    background: #fff;
+    max-width: 210mm;
+    margin: 0 auto;
+    padding: 15mm 15mm 22mm;
+  }
+
+  /* ---- HEADER ---- */
+  .header-band {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--blue);
+  }
+  .qr-placeholder {
+    width: 70px; height: 70px;
+    background: var(--bg-alt);
+    border: 1px solid var(--divider);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    font-size: 7pt; color: var(--text-muted); text-align: center;
+  }
+  .header-title { flex: 1; }
+  .header-title h1 {
+    font-size: 14pt; font-weight: 700;
+    color: var(--blue); text-transform: uppercase;
+    letter-spacing: 0.3px; line-height: 1.2;
+  }
+  .logo-placeholder {
+    width: 100px; height: 48px;
+    background: var(--blue);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .logo-placeholder span { color: #fff; font-weight: 700; font-size: 11pt; letter-spacing: 1px; }
+
+  /* ---- ID GRID ---- */
+  .id-grid { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+  .id-grid td {
+    border: 1px solid var(--divider);
+    padding: 6px 10px;
+    width: 33.33%;
+    vertical-align: top;
+  }
+  .id-label { font-size: 7.5pt; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 2px; }
+  .id-value { font-size: 10.5pt; font-weight: 600; color: var(--text); }
+  .id-value.mono { font-family: monospace; }
+
+  /* ---- STATUS CHIP ---- */
+  .status-chip {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 10px;
+    font-size: 8pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .status-chip.closed { background: var(--green-pale); color: var(--green); border: 1px solid var(--green); }
+  .status-chip.open { background: var(--amber-pale); color: var(--amber); border: 1px solid var(--amber); }
+
+  /* ---- SECTION ---- */
+  .section { margin-bottom: 10px; }
+  .section-head {
+    background: var(--blue);
+    color: #fff;
+    padding: 6px 10px;
+    font-size: 9.5pt;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+  }
+  .section-head .sub { font-weight: 400; font-size: 8pt; opacity: 0.8; margin-left: 8px; }
+  .section-body { border: 1px solid var(--divider); border-top: none; }
+
+  /* ---- NARRATIVE TABLE ---- */
+  .narrative-table { width: 100%; border-collapse: collapse; }
+  .narrative-table td { padding: 5px 10px; border-bottom: 1px solid var(--divider); font-size: 9pt; }
+  .narrative-table td.label { width: 35%; font-weight: 600; color: var(--text-muted); background: var(--bg-alt); }
+  .narrative-table tr:last-child td { border-bottom: none; }
+
+  /* ---- SUMMARY STRIP ---- */
+  .summary-strip {
+    display: flex;
+    border: 1px solid var(--divider);
+    margin-bottom: 10px;
+  }
+  .summary-cell {
+    flex: 1;
+    padding: 7pt 8pt;
+    text-align: center;
+    border-right: 1px solid var(--divider);
+    background: var(--bg-alt);
+  }
+  .summary-cell:last-child { border-right: none; }
+  .sc-label { font-size: 7.5pt; letter-spacing: 0.4px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
+  .sc-value { font-size: 18pt; font-weight: 700; color: var(--text); line-height: 1; margin-top: 2pt; }
+  .summary-cell.green .sc-value { color: var(--green); }
+  .summary-cell.red .sc-value { color: var(--red); }
+  .summary-cell.na .sc-value { color: var(--na); }
+
+  /* ---- CATEGORIES ---- */
+  .category { margin-bottom: 6pt; }
+  .category-header {
+    display: flex;
+    align-items: stretch;
+    background: var(--blue);
+    color: #fff;
+  }
+  .cat-num {
+    width: 36px; min-width: 36px;
+    font-size: 13pt; font-weight: 700;
+    text-align: center;
+    display: flex; align-items: center; justify-content: center;
+    border-right: 1px solid rgba(255,255,255,0.35);
+    padding: 5pt 0;
+  }
+  .cat-title { flex: 1; font-size: 10.5pt; font-weight: 700; letter-spacing: 0.2px; padding: 5pt 10pt; display: flex; align-items: center; }
+  .cat-counts { padding: 5pt 10pt; display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+  .count-chip {
+    display: inline-flex; align-items: center; gap: 3px;
+    padding: 2px 7px;
+    border-radius: 10px;
+    font-size: 7.5pt; font-weight: 700;
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.3);
+  }
+  .count-chip .cc-num { font-size: 9pt; }
+  .count-chip .cc-lbl { font-size: 7pt; opacity: 0.9; }
+  .count-chip.count-green { background: var(--green); border-color: var(--green); }
+  .count-chip.count-red { background: var(--red); border-color: var(--red); }
+  .count-chip.count-na { background: var(--na); border-color: var(--na); }
+  .count-chip.zero { opacity: 0.35; }
+
+  .category-items { border: 1px solid var(--divider); border-top: none; }
+  .item-row {
+    display: flex;
+    align-items: stretch;
+    border-bottom: 1px solid var(--divider);
+  }
+  .item-row:last-child { border-bottom: none; }
+  .item-row:nth-child(even) { background: var(--bg-alt); }
+  .item-num {
+    width: 38px; min-width: 38px;
+    font-size: 8.5pt; font-weight: 700; color: var(--blue);
+    padding: 5px 6px;
+    display: flex; align-items: flex-start; justify-content: center;
+    padding-top: 7px;
+    border-right: 1px solid var(--divider);
+    flex-shrink: 0;
+  }
+  .item-body { flex: 1; padding: 5px 8px; }
+  .item-title { font-size: 9pt; line-height: 1.35; }
+  .item-photo {
+    width: 80px; min-width: 80px;
+    padding: 4px;
+    display: flex; align-items: center; justify-content: center;
+    border-left: 1px solid var(--divider);
+    flex-shrink: 0;
+  }
+  .photo-thumb {
+    width: 72px; height: 50px;
+    background: var(--bg-alt);
+    border: 1px solid var(--divider);
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 7pt; color: var(--text-muted);
+    overflow: hidden;
+  }
+  .ph-badge {
+    position: absolute; top: 2px; left: 2px;
+    background: var(--blue); color: #fff;
+    font-size: 6.5pt; font-weight: 700;
+    padding: 1px 4px; border-radius: 2px;
+  }
+  .item-state {
+    width: 58px; min-width: 58px;
+    display: flex; align-items: center; justify-content: center;
+    border-left: 1px solid var(--divider);
+    flex-shrink: 0;
+  }
+  .state-pill {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-size: 7.5pt; font-weight: 700; text-transform: uppercase;
+    min-width: 44px; text-align: center;
+  }
+  .state-pill.yes { background: var(--green); color: #fff; }
+  .state-pill.no { background: var(--red); color: #fff; }
+  .state-pill.na { background: var(--na); color: #fff; }
+  .state-pill.blank { background: transparent; border: 1px dashed var(--na); color: var(--na); }
+
+  /* Finding inline tag */
+  .finding-inline {
+    margin-top: 4px;
+    padding: 4px 6px;
+    background: var(--red-pale);
+    border-left: 3px solid var(--red);
+    font-size: 8pt;
+    line-height: 1.4;
+  }
+  .finding-tag { font-weight: 700; color: var(--red); margin-right: 4px; }
+  .finding-sev { color: var(--red); font-weight: 600; margin: 0 4px; }
+  .finding-closed { color: var(--green); font-weight: 600; margin-left: 4px; }
+  .finding-open { color: var(--amber); font-weight: 600; margin-left: 4px; }
+
+  /* ---- FINDINGS EXPANDED SECTION ---- */
+  .findings-section { margin-top: 16px; }
+  .findings-section-head {
+    background: var(--blue);
+    color: #fff;
+    padding: 8px 12px;
+    font-size: 11pt;
+    font-weight: 700;
+    margin-bottom: 12px;
+  }
+
+  .finding-card {
+    border: 1px solid var(--divider);
+    margin-bottom: 14px;
+    page-break-inside: avoid;
+  }
+  .finding-card-header {
+    background: var(--blue);
+    color: #fff;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .finding-card-num {
+    font-size: 14pt;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .finding-card-subject {
+    flex: 1;
+    font-size: 10pt;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+  .finding-sev-badge {
+    background: rgba(255,255,255,0.2);
+    border: 1px solid rgba(255,255,255,0.4);
+    padding: 3px 10px;
+    border-radius: 3px;
+    font-size: 8pt;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .finding-sev-badge.sev5 { background: var(--red); border-color: var(--red); }
+  .finding-sev-badge.sev4 { background: #E07B00; border-color: #E07B00; }
+  .finding-sev-badge.sev3 { background: #B7770D; border-color: #B7770D; }
+
+  .finding-meta-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border-bottom: 1px solid var(--divider);
+  }
+  .finding-meta-cell {
+    padding: 5px 10px;
+    border-right: 1px solid var(--divider);
+    border-bottom: 1px solid var(--divider);
+    font-size: 8.5pt;
+  }
+  .finding-meta-cell:nth-child(even) { border-right: none; }
+  .finding-meta-cell .fmc-label { color: var(--text-muted); font-weight: 600; font-size: 7.5pt; text-transform: uppercase; margin-bottom: 1px; }
+  .finding-meta-cell .fmc-value { font-weight: 600; }
+  .finding-meta-cell .fmc-value.closed-val { color: var(--green); }
+  .finding-meta-cell .fmc-value.open-val { color: var(--amber); }
+
+  .finding-description {
+    padding: 8px 10px;
+    font-size: 9pt;
+    line-height: 1.5;
+    border-bottom: 1px solid var(--divider);
+    background: var(--bg-alt);
+  }
+  .finding-description .desc-label { font-weight: 700; font-size: 7.5pt; text-transform: uppercase; color: var(--text-muted); margin-bottom: 3px; }
+  .finding-description .desc-text { color: var(--text); }
+
+  .finding-photos {
+    padding: 8px 10px;
+  }
+  .finding-photos .fp-label { font-weight: 700; font-size: 7.5pt; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; }
+  .finding-photo-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .finding-photo-cell {
+    border: 1px solid var(--divider);
+    background: var(--bg-alt);
+    width: 150px;
+    flex-shrink: 0;
+  }
+  .fpc-img {
+    width: 150px; height: 105px;
+    background: #e8e8e8;
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+    font-size: 8pt; color: var(--text-muted); text-align: center;
+    overflow: hidden;
+  }
+  .fpc-img-inner {
+    width: 100%; height: 100%;
+    background: linear-gradient(135deg, #d0d0d0 0%, #b8b8b8 50%, #c8c8c8 100%);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 4px;
+  }
+  .fpc-icon { font-size: 22pt; opacity: 0.4; }
+  .fpc-caption { font-size: 6.5pt; color: #777; text-align: center; padding: 0 4px; }
+  .fpc-badge {
+    position: absolute; top: 4px; left: 4px;
+    background: var(--blue); color: #fff;
+    font-size: 7pt; font-weight: 700; font-family: monospace;
+    padding: 2px 5px; border-radius: 2px;
+  }
+  .fpc-src {
+    position: absolute; top: 4px; right: 4px;
+    background: var(--red-pale); color: var(--red);
+    border: 1px solid var(--red);
+    font-size: 6pt; font-weight: 700;
+    padding: 1px 4px; border-radius: 2px;
+  }
+  .fpc-caption-bar { padding: 3px 5px; font-size: 7.5pt; color: var(--text-muted); border-top: 1px solid var(--divider); }
+
+  /* ---- SUMMARY FINDINGS TABLE ---- */
+  .findings-table { width: 100%; border-collapse: collapse; font-size: 8.5pt; }
+  .findings-table th {
+    background: var(--blue-pale);
+    border: 1px solid var(--divider);
+    padding: 5px 8px;
+    font-weight: 700; text-align: left;
+    color: var(--blue);
+    font-size: 8pt;
+  }
+  .findings-table td { border: 1px solid var(--divider); padding: 5px 8px; vertical-align: top; }
+  .find-hdr { font-weight: 700; }
+  .find-item { color: var(--text-muted); font-size: 8pt; margin-top: 2px; }
+  .find-meta { font-size: 7.5pt; color: var(--text-muted); margin-top: 1px; }
+  .td-none { text-align: center; color: var(--green); font-weight: 600; padding: 12px 0; }
+
+  /* ---- SIGNOFF ---- */
+  .signoff-block {
+    margin-top: 14px;
+    border: 1px solid var(--divider);
+    padding: 10px;
+  }
+  .signoff-name { font-weight: 700; font-size: 10pt; }
+  .signoff-hint { font-size: 8pt; color: var(--text-muted); margin-top: 3px; }
+  .closecall-note {
+    margin-top: 8px;
+    padding: 7px 10px;
+    background: var(--bg-alt);
+    font-size: 8.5pt;
+    border-left: 3px solid var(--blue);
+  }
+
+  /* ---- PHOTO APPENDIX ---- */
+  .section-break { border-top: 2px solid var(--blue); margin: 20px 0 12px; padding-top: 12px; }
+  .appendix-head {
+    background: var(--blue);
+    color: #fff;
+    padding: 6px 10px;
+    font-weight: 700;
+    font-size: 10pt;
+    margin-bottom: 10px;
+  }
+  .photo-cell-full {
+    border: 1px solid var(--divider);
+    padding: 8px;
+    margin-bottom: 8px;
+    page-break-inside: avoid;
+  }
+  .pc-full-hdr {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 6px;
+    border-bottom: 2px solid var(--blue);
+    margin-bottom: 6px;
+  }
+  .pc-full-no {
+    background: var(--blue); color: #fff;
+    font-size: 11pt; font-weight: 700;
+    padding: 4px 12px; border-radius: 2px;
+    flex-shrink: 0;
+  }
+  .pc-full-item { font-size: 10pt; font-weight: 700; flex: 1; }
+  .pc-src-tag {
+    font-size: 7.5pt; font-weight: 700; padding: 2px 8px; border-radius: 2px;
+    flex-shrink: 0;
+  }
+  .pc-src-inspection { background: var(--bg-alt); color: var(--blue); border: 1px solid var(--blue); }
+  .pc-src-evidence { background: var(--red-pale); color: var(--red); border: 1px solid var(--red); }
+  .pc-full-img {
+    background: #e8e8e8;
+    height: 100mm;
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+  }
+  .pc-full-img-inner {
+    width: 100%; height: 100%;
+    background: linear-gradient(135deg, #d8d8d8 0%, #c0c0c0 50%, #d0d0d0 100%);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 6px;
+  }
+  .pc-full-img .ph-no {
+    position: absolute; top: 8px; left: 8px;
+    background: var(--blue); color: #fff;
+    font-size: 10pt; font-weight: 700;
+    padding: 3px 9px; border-radius: 2px;
+  }
+  .pc-full-meta { margin-top: 6px; font-size: 8.5pt; color: var(--text-muted); text-align: right; font-style: italic; }
+
+  /* ---- PROVENANCE ---- */
+  .provenance {
+    text-align: center;
+    font-size: 7.5pt;
+    font-style: italic;
+    color: var(--text-muted);
+    margin-top: 14px;
+    padding-top: 8px;
+    border-top: 1px solid var(--divider);
+  }
+
+  /* ---- PAGE FOOTER SIMULATION ---- */
+  .page-footer-sim {
+    border-top: 1px solid var(--divider);
+    padding-top: 6px;
+    margin-top: 20px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 7.5pt;
+    color: var(--text-muted);
+  }
+
+  /* ---- RESOLUTION NOTE (new section callout) ---- */
+  .resolution-strip {
+    margin-top: 6px;
+    padding: 5px 8px;
+    background: var(--green-pale);
+    border-left: 3px solid var(--green);
+    font-size: 8pt;
+  }
+  .resolution-strip .res-label { font-weight: 700; color: var(--green); margin-right: 4px; }
+</style>
+</head>
+<body>
+
+<!-- HEADER BAND -->
+<div class="header-band">
+  <div class="qr-placeholder">QR<br>Code<br>CS053</div>
+  <div class="header-title">
+    <h1>CS053 &mdash; Weekly Safety, Health, Environmental &amp; Quality Inspection</h1>
+  </div>
+  <div class="logo-placeholder"><span>SPENCER</span></div>
+</div>
+
+<!-- IDENTIFIER GRID -->
+<table class="id-grid">
+  <tr>
+    <td>
+      <div class="id-label">Project No. / SOS</div>
+      <div class="id-value mono">C2118</div>
+    </td>
+    <td>
+      <div class="id-label">Site</div>
+      <div class="id-value">Carrington</div>
+    </td>
+    <td>
+      <div class="id-label">Form No. (Dalux)</div>
+      <div class="id-value mono">CS053_22</div>
+    </td>
+  </tr>
+  <tr>
+    <td>
+      <div class="id-label">Inspection By</div>
+      <div class="id-value">Charlie Thornton</div>
+    </td>
+    <td>
+      <div class="id-label">Inspection Date</div>
+      <div class="id-value mono">20/03/2026</div>
+    </td>
+    <td>
+      <div class="id-label">Status</div>
+      <div class="id-value"><span class="status-chip closed">Closed</span></div>
+    </td>
+  </tr>
+</table>
+
+<!-- INSPECTION CONTEXT -->
+<div class="section">
+  <div class="section-head">Inspection context <span class="sub">Accompanied personnel, last-inspection reference, subcontractors observed</span></div>
+  <div class="section-body">
+    <table class="narrative-table">
+      <tr><td class="label">Accompanied by</td><td>&mdash;</td></tr>
+      <tr><td class="label">Companies observed</td><td>CSL</td></tr>
+      <tr><td class="label">Date of last inspection</td><td>13/03/2026</td></tr>
+      <tr><td class="label">Last actions closed?</td><td>Yes</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- SUMMARY STRIP -->
+<div class="summary-strip">
+  <div class="summary-cell"><div class="sc-label">Items Inspected</div><div class="sc-value">112</div></div>
+  <div class="summary-cell green"><div class="sc-label">Green</div><div class="sc-value">84</div></div>
+  <div class="summary-cell red"><div class="sc-label">Red (Findings)</div><div class="sc-value">7</div></div>
+  <div class="summary-cell na"><div class="sc-label">N/A</div><div class="sc-value">21</div></div>
+  <div class="summary-cell"><div class="sc-label">Photos</div><div class="sc-value">28</div></div>
+</div>
+
+<!-- ====== CATEGORIES ====== -->
+
+<!-- CAT 1 -->
+<div class="category">
+  <div class="category-header">
+    <div class="cat-num">1</div>
+    <div class="cat-title">Safe Access/Egress &amp; Place of Work (incl. lighting)</div>
+    <div class="cat-counts">
+      <span class="count-chip count-red"><span class="cc-num">3</span><span class="cc-lbl">Red</span></span>
+      <span class="count-chip count-green"><span class="cc-num">4</span><span class="cc-lbl">Green</span></span>
+      <span class="count-chip count-na"><span class="cc-num">1</span><span class="cc-lbl">N/A</span></span>
+    </div>
+  </div>
+  <div class="category-items">
+    <div class="item-row">
+      <div class="item-num">1.1</div>
+      <div class="item-body">
+        <div class="item-title">Signed pedestrian routes to/from entrances, compound &amp; work areas, separated from plant.</div>
+        <div class="finding-inline">
+          <span class="finding-tag">SI39</span>
+          Access route fencing blown over due to high winds.
+          <span class="finding-sev">Sev 3</span> &rarr; Anthony Smith
+          <span class="finding-closed">&#10003; Closed 17/04/2026</span>
+          &nbsp;Evidence: #1, #2
+        </div>
+      </div>
+      <div class="item-photo"><div class="photo-thumb"><div class="ph-badge">#1</div>Photo</div></div>
+      <div class="item-state"><span class="state-pill no">No</span></div>
+    </div>
+    <div class="item-row">
+      <div class="item-num">1.2</div>
+      <div class="item-body">
+        <div class="item-title">Pedestrian routes safe (no slips/trips) and well lit in darkness.</div>
+        <div class="finding-inline">
+          <span class="finding-tag">SI40</span>
+          Pedestrian barriers blown over / breaches between work areas &mdash; no segregation for plant.
+          <span class="finding-sev">Sev 4</span> &rarr; Anthony Smith
+          <span class="finding-closed">&#10003; Closed 17/04/2026</span>
+          &nbsp;Evidence: #3, #4, #5
+        </div>
+      </div>
+      <div class="item-photo"><div class="photo-thumb"><div class="ph-badge">#3</div>Photo</div></div>
+      <div class="item-state"><span class="state-pill no">No</span></div>
+    </div>
+    <div class="item-row">
+      <div class="item-num">1.3</div>
+      <div class="item-body">
+        <div class="item-title">Work areas kept free of slip/trip hazards.</div>
+        <div class="finding-inline">
+          <span class="finding-tag">SI41</span>
+          General housekeeping required.
+          <span class="finding-sev">Sev 3</span> &rarr; Anthony Smith
+          <span class="finding-closed">&#10003; Closed 17/04/2026</span>
+          &nbsp;Evidence: #6, #7, #8, #9
+        </div>
+      </div>
+      <div class="item-photo"><div class="photo-thumb"><div class="ph-badge">#6</div>Photo</div></div>
+      <div class="item-state"><span class="state-pill no">No</span></div>
+    </div>
+    <div class="item-row">
+      <div class="item-num">1.4</div>
+      <div class="item-body"><div class="item-title">Adequate lighting at entrances, compound, work areas and offices; maintained.</div></div>
+      <div class="item-photo"></div>
+      <div class="item-state"><span class="state-pill yes">Yes</span></div>
+    </div>
+    <div class="item-row">
+      <div class="item-num">1.5</div>
+      <div class="item-body"><div class="item-title">Provide backup lighting where main lighting failure could create danger (e.g. torches).</div></div>
+      <div class="item-photo"></div>
+      <div class="item-state"><span class="state-pill yes">Yes</span></div>
+    </div>
+    <div class="item-row">
+      <div class="item-num">1.6</div>
+      <div class="item-body"><div class="item-title">Fresh air/ventilation provided where needed (e.g. tunnels).</div></div>
+      <div class="item-photo"></div>
+      <div class="item-state"><span class="state-pill na">N/A</span></div>
+    </div>
+    <div class="item-row">
+      <div class="item-num">1.7</div>
+      <div class="item-body"><div class="item-title">Indoor work temperatures kept reasonable.</div></div>
+      <div class="item-photo"></div>
+      <div class="item-state"><span class="state-pill yes">Yes</span></div>
+    </div>
+    <div class="item-row">
+      <div class="item-num">1.8</div>
+      <div class="item-body"><div class="item-title">Protect from bad weather, incl. wet weather PPE.</div></div>
+      <div class="item-photo"></div>
+      <div class="item-state"><span class="state-pill yes">Yes</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- CAT 2 -->
+<div class="category">
+  <div class="category-header">
+    <div class="cat-num">2</div>
+    <div class="cat-title">Traffic Routes &amp; Vehicles</div>
+    <div class="cat-counts">
+      <span class="count-chip count-red"><span class="cc-num">1</span><span class="cc-lbl">Red</span></span>
+      <span class="count-chip count-green"><span class="cc-num">3</span><span class="cc-lbl">Green</span></span>
+      <span class="count-chip count-na"><span class="cc-num">3</span><span class="cc-lbl">N/A</span></span>
+    </div>
+  </div>
+  <div class="category-items">
+    <div class="item-row">
+      <div class="item-num">2.1</div>
+      <div class="item-body"><div class="item-title">Vehicle entrances/routes segregated from pedestrians and lit in darkness.</div></div>
+      <div class="item-photo"></div>
+      <div class="item-state"><span class="state-pill yes">Yes</span></div>
+    </div>
+    <div class="item-row">
+      <div class="item-num">2.2</div>
+      <div class="item-body">
+        <div class="item-title">Parking identified, safe and away from works; reverse park cars/vans.</div>
+        <div class="finding-inline">
+          <span class="finding-tag">SI42</span>
+          Insufficient weighted barriers demarcating parking, risk of damage to cars.
+          <span class="finding-sev">Sev 4</span> &rarr; Anthony Smith
+          <span class="finding-closed">&#10003; Closed 17/04/2026</span>
+          &nbsp;Evidence: #10
+        </div>
+      </div>
+      <div class="item-photo"><div class="photo-thumb"><div class="ph-badge">#10</div>Photo</div></div>
+      <div class="item-state"><span class="state-pill no">No</span></div>
+    </div>
+    <div class="item-row">
+      <div class="item-num">2.3</div>
+      <div class="item-body"><div class="item-title">All drivers briefed on site rules and PPE compliance.</div></div>
+      <div class="item-photo"></div>
+      <div class="item-state"><span class="state-pill yes">Yes</span></div>
+    </div>
+    <div class="item-row">
+      <div class="item-num">2.4</div>
+      <div class="item-body"><div class="item-title">Controls for WAH on vehicles provided and used.</div></div>
+      <div class="item-photo"></div>
+      <div class="item-state"><span class="state-pill na">N/A</span></div>
+    </div>
+    <div class="item-row">
+      <div class="item-num">2.5</div>
+      <div class="item-body"><div class="item-title">Traffic management complies with Chapter 8 where applicable.</div></div>
+      <div class="item-photo"></div>
+      <div class="item-state"><span class="state-pill na">N/A</span></div>
+    </div>
+    <div class="item-row">
+      <div class="item-num">2.6</div>
+      <div class="item-body"><div class="item-title">Seatbelts, rollover bars and beacons working and used.</div></div>
+      <div class="item-photo"></div>
+      <div class="item-state"><span class="state-pill yes">Yes</span></div>
+    </div>
+    <div class="item-row">
+      <div class="item-num">2.7</div>
+      <div class="item-body"><div class="item-title">Wheel/road wash provided where needed and maintained.</div></div>
+      <div class="item-photo"></div>
+      <div class="item-state"><span class="state-pill na">N/A</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- CAT 3 -->
+<div class="category">
+  <div class="category-header">
+    <div class="cat-num">3</div>
+    <div class="cat-title">Site Order &amp; Cleanliness</div>
+    <div class="cat-counts">
+      <span class="count-chip count-red"><span class="cc-num">2</span><span class="cc-lbl">Red</span></span>
+      <span class="count-chip count-green"><span class="cc-num">8</span><span class="cc-lbl">Green</span></span>
+      <span class="count-chip count-na zero"><span class="cc-num">0</span><span class="cc-lbl">N/A</span></span>
+    </div>
+  </div>
+  <div class="category-items">
+    <div class="item-row">
+      <div class="item-num">3.1–3.3</div>
+      <div class="item-body"><div class="item-title">Safety signage, tidy work areas, no protruding nails.</div></div>
+      <div class="item-photo"></div>
+      <div class="item-state"><span class="state-pill yes">Yes</span></div>
+    </div>
+    <div class="item-row">
+      <div class="item-num">3.4</div>
+      <div class="item-body">
+        <div class="item-title">Store equipment/materials safely and securely.</div>
+        <div class="finding-inline">
+          <span class="finding-tag">SI44</span>
+          Bucket stored incorrectly / unsafe. Requires lowering to ground level.
+          <span class="finding-sev">Sev 5</span> &rarr; Anthony Smith
+          <span class="finding-closed">&#10003; Closed 17/04/2026</span>
+          &nbsp;Evidence: #11
+        </div>
+      </div>
+      <div class="item-photo"><div class="photo-thumb"><div class="ph-badge">#11</div>Photo</div></div>
+      <div class="item-state"><span class="state-pill no">No</span></div>
+    </div>
+    <div class="item-row">
+      <div class="item-num">3.5–3.10</div>
+      <div class="item-body">
+        <div class="item-title">Remove packaging promptly; subcontractor housekeeping; boot cleaning; clean plant; fuel storage; combustible waste disposal.</div>
+        <div class="finding-inline">
+          <span class="finding-tag">SI43</span>
+          High winds overnight blown over fence panels site-wide. LSG materials loose near powerlines. General housekeeping.
+          <span class="finding-sev">Sev 4</span> &rarr; Anthony Smith
+          <span class="finding-closed">&#10003; Closed 17/04/2026</span>
+          &nbsp;Evidence: #12&ndash;#19
+        </div>
+      </div>
+      <div class="item-photo"><div class="photo-thumb"><div class="ph-badge">#12</div>Photo</div></div>
+      <div class="item-state"><span class="state-pill no">No</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- CAT 4 -->
+<div class="category">
+  <div class="category-header">
+    <div class="cat-num">4</div>
+    <div class="cat-title">Site Security / Protection of Public</div>
+    <div class="cat-counts">
+      <span class="count-chip count-red"><span class="cc-num">1</span><span class="cc-lbl">Red</span></span>
+      <span class="count-chip count-green"><span class="cc-num">5</span><span class="cc-lbl">Green</span></span>
+      <span class="count-chip count-na"><span class="cc-num">1</span><span class="cc-lbl">N/A</span></span>
+    </div>
+  </div>
+  <div class="category-items">
+    <div class="item-row">
+      <div class="item-num">4.1</div>
+      <div class="item-body"><div class="item-title">Public separated from work areas.</div></div>
+      <div class="item-photo"></div>
+      <div class="item-state"><span class="state-pill yes">Yes</span></div>
+    </div>
+    <div class="item-row">
+      <div class="item-num">4.2</div>
+      <div class="item-body">
+        <div class="item-title">Site fenced and secured.</div>
+        <div class="finding-inline">
+          <span class="finding-tag">SI45</span>
+          Fencing inspection required site-wide.
+          <span class="finding-sev">Sev 5</span> &rarr; Anthony Smith
+          <span class="finding-closed">&#10003; Closed 17/04/2026</span>
+          &nbsp;Evidence: #20&ndash;#24
+        </div>
+      </div>
+      <div class="item-photo"><div class="photo-thumb"><div class="ph-badge">#20</div>Photo</div></div>
+      <div class="item-state"><span class="state-pill no">No</span></div>
+    </div>
+    <div class="item-row">
+      <div class="item-num">4.3</div>
+      <div class="item-body"><div class="item-title">Check fencing weekly for damage and unauthorised access.</div></div>
+      <div class="item-photo"></div>
+      <div class="item-state"><span class="state-pill na">N/A</span></div>
+    </div>
+    <div class="item-row">
+      <div class="item-num">4.4–4.8</div>
+      <div class="item-body"><div class="item-title">Gates locked/manned; out-of-hours security; materials stored to deter theft; protect public from falling materials, noise/dust/fumes.</div></div>
+      <div class="item-photo"></div>
+      <div class="item-state"><span class="state-pill yes">Yes</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- CATS 5-14 abbreviated for space -->
+<div class="category">
+  <div class="category-header">
+    <div class="cat-num">5</div>
+    <div class="cat-title">Excavations</div>
+    <div class="cat-counts">
+      <span class="count-chip count-green"><span class="cc-num">4</span><span class="cc-lbl">Green</span></span>
+      <span class="count-chip count-na"><span class="cc-num">4</span><span class="cc-lbl">N/A</span></span>
+    </div>
+  </div>
+  <div class="category-items">
+    <div class="item-row">
+      <div class="item-num">5.1–5.8</div>
+      <div class="item-body"><div class="item-title">Edge protection, collapse prevention, safe access, inspections, confined space arrangements.</div></div>
+      <div class="item-photo"><div class="photo-thumb"><div class="ph-badge">#25</div>Photo</div></div>
+      <div class="item-state"><span class="state-pill yes">Yes</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="category">
+  <div class="category-header">
+    <div class="cat-num">6–14</div>
+    <div class="cat-title">Overhead Cables, Plant, Work at Height, Welfare, Fire, PPE, Environment, Quality, Safety Systems</div>
+    <div class="cat-counts">
+      <span class="count-chip count-green"><span class="cc-num">58</span><span class="cc-lbl">Green</span></span>
+      <span class="count-chip count-na"><span class="cc-num">11</span><span class="cc-lbl">N/A</span></span>
+    </div>
+  </div>
+  <div class="category-items">
+    <div class="item-row">
+      <div class="item-num">—</div>
+      <div class="item-body" style="color:var(--text-muted);font-style:italic;padding:8px;">
+        Categories 6–14 all Green or N/A. No findings raised. Full item list rendered in production report.
+      </div>
+      <div class="item-photo"></div>
+      <div class="item-state"></div>
+    </div>
+  </div>
+</div>
+
+<!-- SIGNOFF & CLOSE CALL -->
+<div class="closecall-note">Please confirm that all Close Calls identified in this report have been uploaded onto the Close Call System (https://thespencergroup.co.uk/closecall/)</div>
+<div class="signoff-block">
+  <div class="signoff-name">Signed: Charlie Thornton</div>
+  <div class="signoff-hint">Digital signature captured in Dalux Field on 20/03/2026</div>
+</div>
+
+<!-- ========================================================
+     FINDINGS & ACTIONS — EXPANDED DETAIL
+     This is the NEW section that needs to be added.
+     Each safety issue is a full card with metadata + photos.
+     ======================================================== -->
+
+<div class="findings-section">
+  <div class="findings-section-head">Findings &amp; Actions &mdash; 7 issues raised</div>
+
+  <!-- SUMMARY TABLE FIRST -->
+  <div class="section" style="margin-bottom:16px;">
+    <div class="section-head">Summary</div>
+    <div class="section-body">
+      <table class="findings-table">
+        <thead>
+          <tr>
+            <th style="width:28px">No.</th>
+            <th>Finding</th>
+            <th>Action to be Taken</th>
+            <th>Who By</th>
+            <th>Closed (Date)</th>
+            <th>Close Call</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="text-align:center;font-weight:700">1</td>
+            <td>
+              <div class="find-hdr">SI39 &mdash; Access route fencing blown over (Evidence: #1, #2)</div>
+              <div class="find-item">Item: 1.1 Signed pedestrian routes</div>
+              <div class="find-meta">Severity: 3 &middot; Subcategory: GOOD PRACTICE</div>
+            </td>
+            <td>Barriers re-installed</td>
+            <td>Anthony Smith</td>
+            <td style="color:var(--green);font-weight:600">17/04/2026</td>
+            <td>&mdash;</td>
+          </tr>
+          <tr>
+            <td style="text-align:center;font-weight:700">2</td>
+            <td>
+              <div class="find-hdr">SI40 &mdash; Pedestrian barriers blown over (Evidence: #3, #4, #5)</div>
+              <div class="find-item">Item: 1.2 Pedestrian routes safe</div>
+              <div class="find-meta">Severity: 4 &middot; Subcategory: GOOD PRACTICE</div>
+            </td>
+            <td>Barriers re-installed and lighting made available</td>
+            <td>Anthony Smith</td>
+            <td style="color:var(--green);font-weight:600">17/04/2026</td>
+            <td>&mdash;</td>
+          </tr>
+          <tr>
+            <td style="text-align:center;font-weight:700">3</td>
+            <td>
+              <div class="find-hdr">SI41 &mdash; General housekeeping required (Evidence: #6&ndash;#9)</div>
+              <div class="find-item">Item: 1.3 Work areas free of slip/trip hazards</div>
+              <div class="find-meta">Severity: 3 &middot; Subcategory: GOOD PRACTICE</div>
+            </td>
+            <td>Area cleared</td>
+            <td>Anthony Smith</td>
+            <td style="color:var(--green);font-weight:600">17/04/2026</td>
+            <td>&mdash;</td>
+          </tr>
+          <tr>
+            <td style="text-align:center;font-weight:700">4</td>
+            <td>
+              <div class="find-hdr">SI42 &mdash; Insufficient parking barriers (Evidence: #10)</div>
+              <div class="find-item">Item: 2.2 Parking identified and safe</div>
+              <div class="find-meta">Severity: 4 &middot; Subcategory: GOOD PRACTICE</div>
+            </td>
+            <td>Additional weighted barriers installed</td>
+            <td>Anthony Smith</td>
+            <td style="color:var(--green);font-weight:600">17/04/2026</td>
+            <td>&mdash;</td>
+          </tr>
+          <tr>
+            <td style="text-align:center;font-weight:700">5</td>
+            <td>
+              <div class="find-hdr">SI43 &mdash; Fence panels blown over site-wide (Evidence: #12&ndash;#19)</div>
+              <div class="find-item">Item: 3.5–3.10 Site order and cleanliness</div>
+              <div class="find-meta">Severity: 4 &middot; Subcategory: GOOD PRACTICE</div>
+            </td>
+            <td>Barriers re-installed</td>
+            <td>Anthony Smith</td>
+            <td style="color:var(--green);font-weight:600">17/04/2026</td>
+            <td>&mdash;</td>
+          </tr>
+          <tr>
+            <td style="text-align:center;font-weight:700">6</td>
+            <td>
+              <div class="find-hdr">SI44 &mdash; Bucket stored incorrectly (Evidence: #11)</div>
+              <div class="find-item">Item: 3.4 Store equipment/materials safely</div>
+              <div class="find-meta">Severity: 5 &middot; Subcategory: MOVING PLANT &amp; MACHINERY</div>
+            </td>
+            <td>Bucket stored correctly at ground level</td>
+            <td>Anthony Smith</td>
+            <td style="color:var(--green);font-weight:600">17/04/2026</td>
+            <td>&mdash;</td>
+          </tr>
+          <tr>
+            <td style="text-align:center;font-weight:700">7</td>
+            <td>
+              <div class="find-hdr">SI45 &mdash; Fencing inspection required site-wide (Evidence: #20&ndash;#24)</div>
+              <div class="find-item">Item: 4.2 Site fenced and secured</div>
+              <div class="find-meta">Severity: 5 &middot; Subcategory: GOOD PRACTICE</div>
+            </td>
+            <td>Barriers re-installed</td>
+            <td>Anthony Smith</td>
+            <td style="color:var(--green);font-weight:600">17/04/2026</td>
+            <td>&mdash;</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ---- EXPANDED FINDING CARDS ---- -->
+
+  <!-- SI39 -->
+  <div class="finding-card">
+    <div class="finding-card-header">
+      <div class="finding-card-num">SI39</div>
+      <div class="finding-card-subject">1.1: Signed pedestrian routes to/from entrances, compound &amp; work areas, separated from plant.</div>
+      <div class="finding-sev-badge sev3">Severity 3</div>
+    </div>
+    <div class="finding-meta-grid">
+      <div class="finding-meta-cell"><div class="fmc-label">Checklist item</div><div class="fmc-value">1.1 Safe Access/Egress</div></div>
+      <div class="finding-meta-cell"><div class="fmc-label">Subcategory</div><div class="fmc-value">Good Practice</div></div>
+      <div class="finding-meta-cell"><div class="fmc-label">Raised by</div><div class="fmc-value">Charlie Thornton</div></div>
+      <div class="finding-meta-cell"><div class="fmc-label">Assigned to</div><div class="fmc-value">Anthony Smith</div></div>
+      <div class="finding-meta-cell"><div class="fmc-label">Date raised</div><div class="fmc-value">25/03/2026</div></div>
+      <div class="finding-meta-cell"><div class="fmc-label">Deadline</div><div class="fmc-value">20/03/2026</div></div>
+      <div class="finding-meta-cell"><div class="fmc-label">Work package</div><div class="fmc-value">Substructure – Piling</div></div>
+      <div class="finding-meta-cell"><div class="fmc-label">Status</div><div class="fmc-value closed-val">&#10003; Approved / Closed — 17/04/2026</div></div>
+    </div>
+    <div class="finding-description">
+      <div class="desc-label">Description</div>
+      <div class="desc-text">Access route fencing blown over due to high winds.</div>
+    </div>
+    <div class="resolution-strip"><span class="res-label">Resolution (17/04/2026 — Ryan Woods):</span> Barriers re-installed.</div>
+    <div class="finding-photos">
+      <div class="fp-label">Evidence Photos (2)</div>
+      <div class="finding-photo-row">
+        <div class="finding-photo-cell">
+          <div class="fpc-img">
+            <div class="fpc-img-inner"><div class="fpc-icon">&#128247;</div><div class="fpc-caption">Fencing blown over<br>Access route</div></div>
+            <div class="fpc-badge">#1</div>
+            <div class="fpc-src">EVIDENCE</div>
+          </div>
+          <div class="fpc-caption-bar">SI39 · Photo 1 of 2</div>
+        </div>
+        <div class="finding-photo-cell">
+          <div class="fpc-img">
+            <div class="fpc-img-inner"><div class="fpc-icon">&#128247;</div><div class="fpc-caption">Barriers reinstated<br>Close-out evidence</div></div>
+            <div class="fpc-badge">#2</div>
+            <div class="fpc-src">EVIDENCE</div>
+          </div>
+          <div class="fpc-caption-bar">SI39 · Photo 2 of 2</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SI40 -->
+  <div class="finding-card">
+    <div class="finding-card-header">
+      <div class="finding-card-num">SI40</div>
+      <div class="finding-card-subject">1.2: Pedestrian routes safe (no slips/trips) and well lit in darkness.</div>
+      <div class="finding-sev-badge sev4">Severity 4</div>
+    </div>
+    <div class="finding-meta-grid">
+      <div class="finding-meta-cell"><div class="fmc-label">Checklist item</div><div class="fmc-value">1.2 Pedestrian routes</div></div>
+      <div class="finding-meta-cell"><div class="fmc-label">Subcategory</div><div class="fmc-value">Good Practice</div></div>
+      <div class="finding-meta-cell"><div class="fmc-label">Raised by</div><div class="fmc-value">Charlie Thornton</div></div>
+      <div class="finding-meta-cell"><div class="fmc-label">Assigned to</div><div class="fmc-value">Anthony Smith</div></div>
+      <div class="finding-meta-cell"><div class="fmc-label">Date raised</div><div class="fmc-value">25/03/2026</div></div>
+      <div class="finding-meta-cell"><div class="fmc-label">Deadline</div><div class="fmc-value">20/03/2026</div></div>
+      <div class="finding-meta-cell"><div class="fmc-label">Work package</div><div class="fmc-value">Safety</div></div>
+      <div class="finding-meta-cell"><div class="fmc-label">Status</div><div class="fmc-value closed-val">&#10003; Approved / Closed — 17/04/2026</div></div>
+    </div>
+    <div class="finding-description">
+      <div class="desc-label">Description</div>
+      <div class="desc-text">Pedestrian barriers blown over / breaches between work areas &mdash; no segregation for plant.</div>
+    </div>
+    <div class="resolution-strip"><span class="res-label">Resolution (17/04/2026 — Ryan Woods):</span> Barriers re-installed and lighting made available.</div>
+    <div class="finding-photos">
+      <div class="fp-label">Evidence Photos (3)</div>
+      <div class="finding-photo-row">
+        <div class="finding-photo-cell">
+          <div class="fpc-img">
+            <div class="fpc-img-inner"><div class="fpc-icon">&#128247;</div><div class="fpc-caption">Barriers down<br>Pedestrian route</div></div>
+            <div class="fpc-badge">#3</div><div class="fpc-src">EVIDENCE</div>
+          </div>
+          <div class="fpc-caption-bar">SI40 · Photo 1 of 3</div>
+        </div>
+        <div class="finding-photo-cell">
+          <div class="fpc-img">
+            <div class="fpc-img-inner"><div class="fpc-icon">&#128247;</div><div class="fpc-caption">Barrier breach<br>Plant segregation</div></div>
+            <div class="fpc-badge">#4</div><div class="fpc-src">EVIDENCE</div>
+          </div>
+          <div class="fpc-caption-bar">SI40 · Photo 2 of 3</div>
+        </div>
+        <div class="finding-photo-cell">
+          <div class="fpc-img">
+            <div class="fpc-img-inner"><div class="fpc-icon">&#128247;</div><div class="fpc-caption">Close-out<br>Barriers reinstated</div></div>
+            <div class="fpc-badge">#5</div><div class="fpc-src">EVIDENCE</div>
+          </div>
+          <div class="fpc-caption-bar">SI40 · Photo 3 of 3</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SI41 -->
+  <div class="finding-card">
+    <div class="finding-card-header">
+      <div class="finding-card-num">SI41</div>
+      <div class="finding-card-subject">1.3: Work areas kept free of slip/trip hazards.</div>
+      <div class="finding-sev-badge sev3">Severity 3</div>
+    </div>
+    <div class="finding-meta-grid">
+      <div class="finding-meta-cell"><div class="fmc-label">Checklist item</div><div class="fmc-value">1.3 Work areas free of hazards</div></div>
+      <div class="finding-meta-cell"><div class="fmc-label">Subcategory</div><div class="fmc-value">Good Practice</div></div>
+      <div class="finding-meta-cell"><div class="fmc-label">Raised by</div><div class="fmc-value">Charlie Thornton</div></div>
+      <div class="finding-meta-cell"><div class="fmc-label">Assigned to</div><div class="fmc-value">Anthony Smith</div></div>
+      <div class="finding-meta-cell"><div class="fmc-label">Date raised</div><div class="fmc-value">25/03/2026</div></div>
+      <div class="finding-meta-cell"><div class="fmc-label">Deadline</div><div class="fmc-value">20/03/2026</div></div>
+      <div class="finding-meta-cell"><div class="fmc-label">Work package</div><div class="fmc-value">Safety</div></div>
+      <div class="finding-meta-cell"><div class="fmc-label">Status</div><div class="fmc-value closed-val">&#10003; Approved / Closed — 17/04/2026</div></div>
+    </div>
+    <div class="finding-description">
+      <div class="desc-label">Description</div>
+      <div class="desc-text">General housekeeping required.</div>
+    </div>
+    <div class="resolution-strip"><span class="res-label">Resolution (17/04/2026 — Ryan Woods):</span> Area cleared and tidied.</div>
+    <div class="finding-photos">
+      <div class="fp-label">Evidence Photos (4)</div>
+      <div class="finding-photo-row">
+        <div class="finding-photo-cell">
+          <div class="fpc-img"><div class="fpc-img-inner"><div class="fpc-icon">&#128247;</div><div class="fpc-caption">Rebar materials<br>Work area</div></div><div class="fpc-badge">#6</div><div class="fpc-src">EVIDENCE</div></div>
+          <div class="fpc-caption-bar">SI41 · Photo 1 of 4</div>
+        </div>
+        <div class="finding-photo-cell">
+          <div class="fpc-img"><div class="fpc-img-inner"><div class="fpc-icon">&#128247;</div><div class="fpc-caption">General<br>housekeeping</div></div><div class="fpc-badge">#7</div><div class="fpc-src">EVIDENCE</div></div>
+          <div class="fpc-caption-bar">SI41 · Photo 2 of 4</div>
+        </div>
+        <div class="finding-photo-cell">
+          <div class="fpc-img"><div class="fpc-img-inner"><div class="fpc-icon">&#128247;</div><div class="fpc-caption">Close-out<br>Area cleared</div></div><div class="fpc-badge">#8</div><div class="fpc-src">EVIDENCE</div></div>
+          <div class="fpc-caption-bar">SI41 · Photo 3 of 4</div>
+        </div>
+        <div class="finding-photo-cell">
+          <div class="fpc-img"><div class="fpc-img-inner"><div class="fpc-icon">&#128247;</div><div class="fpc-caption">Close-out<br>Area cleared</div></div><div class="fpc-badge">#9</div><div class="fpc-src">EVIDENCE</div></div>
+          <div class="fpc-caption-bar">SI41 · Photo 4 of 4</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SI44 and SI45 abbreviated for space — same pattern -->
+  <div class="finding-card">
+    <div class="finding-card-header">
+      <div class="finding-card-num">SI44</div>
+      <div class="finding-card-subject">3.4: Store equipment/materials safely and securely.</div>
+      <div class="finding-sev-badge sev5">Severity 5</div>
+    </div>
+    <div class="finding-meta-grid">
+      <div class="finding-meta-cell"><div class="fmc-label">Checklist item</div><div class="fmc-value">3.4 Store equipment safely</div></div>
+      <div class="finding-meta-cell"><div class="fmc-label">Subcategory</div><div class="fmc-value">Moving Plant &amp; Machinery</div></div>
+      <div class="finding-meta-cell"><div class="fmc-label">Raised by</div><div class="fmc-value">Charlie Thornton</div></div>
+      <div class="finding-meta-cell"><div class="fmc-label">Assigned to</div><div class="fmc-value">Anthony Smith</div></div>
+      <div class="finding-meta-cell"><div class="fmc-label">Date raised</div><div class="fmc-value">25/03/2026</div></div>
+      <div class="finding-meta-cell"><div class="fmc-label">Deadline</div><div class="fmc-value">20/03/2026</div></div>
+      <div class="finding-meta-cell"><div class="fmc-label">Work package</div><div class="fmc-value">Safety</div></div>
+      <div class="finding-meta-cell"><div class="fmc-label">Status</div><div class="fmc-value closed-val">&#10003; Approved / Closed — 17/04/2026</div></div>
+    </div>
+    <div class="finding-description">
+      <div class="desc-label">Description</div>
+      <div class="desc-text">Bucket stored incorrectly / unsafe. Requires lowering to ground level.</div>
+    </div>
+    <div class="resolution-strip"><span class="res-label">Resolution (17/04/2026 — Ryan Woods):</span> Bucket stored correctly at ground level.</div>
+    <div class="finding-photos">
+      <div class="fp-label">Evidence Photos (1)</div>
+      <div class="finding-photo-row">
+        <div class="finding-photo-cell">
+          <div class="fpc-img"><div class="fpc-img-inner"><div class="fpc-icon">&#128247;</div><div class="fpc-caption">Excavator bucket<br>stored at height</div></div><div class="fpc-badge">#11</div><div class="fpc-src">EVIDENCE</div></div>
+          <div class="fpc-caption-bar">SI44 · Photo 1 of 1</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="finding-card">
+    <div class="finding-card-header">
+      <div class="finding-card-num">SI45</div>
+      <div class="finding-card-subject">4.2: Site fenced and secured.</div>
+      <div class="finding-sev-badge sev5">Severity 5</div>
+    </div>
+    <div class="finding-meta-grid">
+      <div class="finding-meta-cell"><div class="fmc-label">Checklist item</div><div class="fmc-value">4.2 Site fenced and secured</div></div>
+      <div class="finding-meta-cell"><div class="fmc-label">Subcategory</div><div class="fmc-value">Good Practice</div></div>
+      <div class="finding-meta-cell"><div class="fmc-label">Raised by</div><div class="fmc-value">Charlie Thornton</div></div>
+      <div class="finding-meta-cell"><div class="fmc-label">Assigned to</div><div class="fmc-value">Anthony Smith</div></div>
+      <div class="finding-meta-cell"><div class="fmc-label">Date raised</div><div class="fmc-value">25/03/2026</div></div>
+      <div class="finding-meta-cell"><div class="fmc-label">Deadline</div><div class="fmc-value">20/03/2026</div></div>
+      <div class="finding-meta-cell"><div class="fmc-label">Work package</div><div class="fmc-value">Safety</div></div>
+      <div class="finding-meta-cell"><div class="fmc-label">Status</div><div class="fmc-value closed-val">&#10003; Approved / Closed — 17/04/2026</div></div>
+    </div>
+    <div class="finding-description">
+      <div class="desc-label">Description</div>
+      <div class="desc-text">Fencing inspection required site-wide. High winds have displaced barriers across multiple perimeter sections.</div>
+    </div>
+    <div class="resolution-strip"><span class="res-label">Resolution (17/04/2026 — Ryan Woods):</span> Barriers re-installed site-wide. Fencing inspection completed.</div>
+    <div class="finding-photos">
+      <div class="fp-label">Evidence Photos (5)</div>
+      <div class="finding-photo-row">
+        <div class="finding-photo-cell">
+          <div class="fpc-img"><div class="fpc-img-inner"><div class="fpc-icon">&#128247;</div><div class="fpc-caption">North perimeter<br>Fencing down</div></div><div class="fpc-badge">#20</div><div class="fpc-src">EVIDENCE</div></div>
+          <div class="fpc-caption-bar">SI45 · Photo 1 of 5</div>
+        </div>
+        <div class="finding-photo-cell">
+          <div class="fpc-img"><div class="fpc-img-inner"><div class="fpc-icon">&#128247;</div><div class="fpc-caption">East perimeter<br>Barrier displaced</div></div><div class="fpc-badge">#21</div><div class="fpc-src">EVIDENCE</div></div>
+          <div class="fpc-caption-bar">SI45 · Photo 2 of 5</div>
+        </div>
+        <div class="finding-photo-cell">
+          <div class="fpc-img"><div class="fpc-img-inner"><div class="fpc-icon">&#128247;</div><div class="fpc-caption">Site entrance<br>Fencing breach</div></div><div class="fpc-badge">#22</div><div class="fpc-src">EVIDENCE</div></div>
+          <div class="fpc-caption-bar">SI45 · Photo 3 of 5</div>
+        </div>
+        <div class="finding-photo-cell">
+          <div class="fpc-img"><div class="fpc-img-inner"><div class="fpc-icon">&#128247;</div><div class="fpc-caption">Close-out<br>Fencing reinstated</div></div><div class="fpc-badge">#23</div><div class="fpc-src">EVIDENCE</div></div>
+          <div class="fpc-caption-bar">SI45 · Photo 4 of 5</div>
+        </div>
+        <div class="finding-photo-cell">
+          <div class="fpc-img"><div class="fpc-img-inner"><div class="fpc-icon">&#128247;</div><div class="fpc-caption">Close-out<br>Full perimeter</div></div><div class="fpc-badge">#24</div><div class="fpc-src">EVIDENCE</div></div>
+          <div class="fpc-caption-bar">SI45 · Photo 5 of 5</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- end findings-section -->
+
+<!-- PROVENANCE -->
+<div class="provenance">
+  Generated from Dalux Field &middot; Form ID S4XXXXXX &middot; Form No. CS053_22 &middot; Status: Closed &middot;
+  Created 25 Mar 2026 by Charlie Thornton &middot; Modified 25 Mar 2026 by Charlie Thornton
+</div>
+
+<!-- FOOTER SIM -->
+<div class="page-footer-sim">
+  <div>
+    <div><strong>Dalux Field</strong> &middot; Form No. CS 053 &middot; Issue No. 18 (rev) &middot; Revision date 16/04/2026</div>
+    <div>SOS location: Internal audits &rarr; Weekly safety, health, environmental &amp; quality inspection (CS053)</div>
+  </div>
+  <div style="text-align:right">
+    <div>charlie.thornton@thespencergroup.co.uk</div>
+    <div>Page 1 of N</div>
+  </div>
+</div>
+
+</body>
+</html>
