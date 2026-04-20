@@ -645,8 +645,22 @@ def render_html(payload: dict) -> str:
 
 
 def _sanitise_site(s: Optional[str]) -> str:
-    """Strip non-alphanumerics per design system §Filename pattern."""
-    return re.sub(r"[^A-Za-z0-9]", "", s or "")
+    """Split first token (SO number) from the rest with an underscore,
+    then strip non-alphanumerics within each part.
+
+    e.g. "C2144 FRB Lateral Thrust Bearing Works"
+      -> "C2144_FRBLateralThrustBearingWorks"
+    """
+    if not s:
+        return ""
+    parts = s.strip().split(None, 1)
+    first = re.sub(r"[^A-Za-z0-9]", "", parts[0])
+    if len(parts) == 1:
+        return first
+    rest = re.sub(r"[^A-Za-z0-9]", "", parts[1])
+    if first and rest:
+        return f"{first}_{rest}"
+    return first or rest
 
 
 def build_filename(db: Session, form_meta) -> str:
