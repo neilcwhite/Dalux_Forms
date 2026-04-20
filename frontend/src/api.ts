@@ -76,8 +76,10 @@ export interface SiteFormSummaryEntry {
 
 export type SiteFormSummary = Record<string, SiteFormSummaryEntry>;
 
-export async function fetchSiteFormSummary(): Promise<SiteFormSummary> {
-  const { data } = await api.get<SiteFormSummary>("/api/sites/form-summary");
+export async function fetchSiteFormSummary(formType?: string): Promise<SiteFormSummary> {
+  const { data } = await api.get<SiteFormSummary>("/api/sites/form-summary", {
+    params: formType ? { form_type: formType } : undefined,
+  });
   return data;
 }
 

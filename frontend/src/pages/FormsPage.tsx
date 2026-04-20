@@ -47,8 +47,8 @@ export default function FormsPage() {
   });
 
   const siteSummaryQuery = useQuery({
-    queryKey: ["site-form-summary"],
-    queryFn: fetchSiteFormSummary,
+    queryKey: ["site-form-summary", formType],
+    queryFn: () => fetchSiteFormSummary(formType || undefined),
   });
 
   const formTypesQuery = useQuery({

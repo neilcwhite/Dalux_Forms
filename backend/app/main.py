@@ -59,13 +59,22 @@ def db_health(db: Session = Depends(get_db)):
 
 @app.get("/api/sites/form-summary")
 def site_form_summary(
+    form_type: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     app_db: Session = Depends(get_app_db),
 ):
-    """For each project: which custom-report templates are in use, total form count, and how many have never been downloaded."""
+    """For each project: which custom-report templates are in use, total form count, and how many have never been downloaded.
+
+    When `form_type` is provided, counts are restricted to that template only
+    (e.g. CS053 filter → per-site counts reflect just CS053 forms). Otherwise
+    all custom-report templates are aggregated.
+    """
     if not TEMPLATES_WITH_CUSTOM_REPORT:
         return {}
-    template_list = sorted(TEMPLATES_WITH_CUSTOM_REPORT)
+    if form_type and form_type in TEMPLATES_WITH_CUSTOM_REPORT:
+        template_list = [form_type]
+    else:
+        template_list = sorted(TEMPLATES_WITH_CUSTOM_REPORT)
     placeholders = ",".join(f":t{i}" for i in range(len(template_list)))
     binds = {f"t{i}": tn for i, tn in enumerate(template_list)}
     forms = db.execute(text(f"""
