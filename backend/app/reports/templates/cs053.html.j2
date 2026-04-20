@@ -309,21 +309,25 @@
   }
   .fp-cell:last-child { margin-bottom: 0; }
   .fpc-img {
-    display: block;
     background: var(--bg-alt);
     border: 1px solid var(--divider);
     position: relative;
-    line-height: 0;
-    font-size: 0;
+    height: 140mm;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
-  /* Max-width caps the photo at the card content area; max-height caps
-     a tall portrait from taking the whole page. Whichever limit binds
-     first wins, so a landscape photo lands at 186mm × ~140mm and a
-     portrait at ~135mm × 180mm. No cropping either way. */
+  /* Fixed 140mm container mirrors the appendix pattern — deterministic
+     height regardless of photo orientation ensures the whole finding card
+     (header + metadata + description + photo) fits on one page under
+     page-break-inside: avoid. Photo scales to fit: portrait ~105×140mm,
+     landscape ~186×~140mm. If a future finding overflows (very long
+     description + resolution strip), drop this to 130mm or 120mm. */
   .fpc-img img {
     display: block;
-    max-width: 186mm;
-    max-height: 180mm;
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
   }
   .fpc-missing {
     display: block;
