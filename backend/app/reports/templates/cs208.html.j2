@@ -1,0 +1,519 @@
+{#-
+  CS208 Protective Coating Inspection Report
+  Family F — Technical Test Record
+  Design approved in chat session 2026-04-20 against reference form S436856085521893376.
+  Design derived from CS053 conventions, adapted for measurements-record shape.
+
+  Context variables expected (see cs208.py build_context):
+    form_code, form_description, template_name
+    ident: dict with project_udf, project_num, client, report_number, component,
+           application_method, specification, location, site_name,
+           form_number, form_id, status, created
+    tests: list of {title, iso, params} where params is [(label, value), ...]
+    coating_groups: list of {header?, rows: [(label, [c1,c2,c3,c4]), ...]}
+    comments: list of up to 2 strings (test-record, coating-log)
+    signoffs: list of 4 dicts {role, page, position, date_started, date_finished, signature_path}
+    photos: list of {n, filename, local_path, attached_to_field, attached_to_value}
+    creator_initials, creator_fullname
+    qr_asset: absolute file:// path or relative URL to CS208 QR png (from _find_asset)
+    logo_asset: absolute file:// path or relative URL to Spencer logo png
+-#}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>CS208 — Protective Coating Inspection Report</title>
+<style>
+  @page {
+    size: A4;
+    margin: 15mm 15mm 22mm 15mm;
+    @bottom-left {
+      content: "Dalux Field  ·  Form No. CS208  ·  Issue No. 03 / Rev. 12/06/25  ·  SOS: Quality => Inspection & Test Plans";
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      font-size: 7pt; color: #555;
+      border-top: 1px solid #D8DCE6;
+      padding-top: 4pt; padding-right: 80pt;
+    }
+    @bottom-right {
+      content: "Page " counter(page) " of " counter(pages);
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      font-size: 7pt; color: #555;
+      border-top: 1px solid #D8DCE6;
+      padding-top: 4pt;
+      width: 80pt;
+    }
+  }
+
+  html, body {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 9pt; color: #1A1A1A;
+    margin: 0; padding: 0; line-height: 1.35;
+  }
+
+  /* Document header */
+  .doc-head {
+    display: flex; justify-content: space-between; align-items: center;
+    padding-bottom: 6px; border-bottom: 2px solid #233E99; margin-bottom: 8px;
+  }
+  .doc-head .qr  { width: 60px; height: 60px; object-fit: contain; }
+  .doc-head .mid { text-align: center; flex-grow: 1; padding: 0 10px; }
+  .doc-head h1  {
+    color: #233E99; font-size: 12pt; font-weight: 700;
+    letter-spacing: 0.4pt; margin: 0 0 2px 0; text-transform: uppercase;
+  }
+  .doc-head .sub { font-size: 7.5pt; color: #555; letter-spacing: 0.3pt; }
+  .doc-head .logo { height: 42px; object-fit: contain; }
+
+  /* Identifiers strip */
+  .ident-strip {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 0;
+    border: 1px solid #D8DCE6; margin-bottom: 6px;
+  }
+  .ident-cell {
+    padding: 3px 8px; background: #FAFBFD;
+    border-right: 1px solid #D8DCE6; border-bottom: 1px solid #D8DCE6;
+  }
+  .ident-cell:nth-child(4n) { border-right: none; }
+  .ident-strip > .ident-cell:nth-last-child(-n+4) { border-bottom: none; }
+  .ident-cell.wide { grid-column: span 2; }
+  .ident-label {
+    text-transform: uppercase; font-size: 6.5pt; color: #555;
+    letter-spacing: 0.5pt; margin-bottom: 2px;
+  }
+  .ident-value { font-size: 9pt; font-weight: 600; color: #1A1A1A; }
+  .ident-value.muted { color: #8A8A8A; font-style: italic; font-weight: 400; }
+
+  /* ISO test sections */
+  .test-section { border: 1px solid #D8DCE6; margin-bottom: 4px; page-break-inside: avoid; }
+  .test-section-header {
+    background: #233E99; color: white; padding: 3px 10px;
+    display: flex; justify-content: space-between; align-items: baseline;
+  }
+  .test-section-title {
+    font-size: 9pt; font-weight: 700; letter-spacing: 0.3pt; text-transform: uppercase;
+  }
+  .test-section-iso { font-size: 7pt; color: #C7D3F0; font-style: italic; }
+  .test-section-body { padding: 0; }
+  .param-grid { display: grid; grid-template-columns: repeat(2, 1fr); }
+  .param-cell {
+    padding: 3px 10px;
+    border-bottom: 1px solid #EEF1FA;
+    border-right: 1px solid #EEF1FA;
+    display: flex; justify-content: space-between;
+    min-height: 18px; align-items: center;
+  }
+  .param-cell:nth-child(even) { border-right: none; }
+  .param-cell:nth-last-child(-n+2) { border-bottom: none; }
+  .param-cell:nth-last-child(1):nth-child(odd) { border-right: none; grid-column: span 2; }
+  .param-label { color: #555; font-size: 8pt; margin-right: 10px; flex-shrink: 0; }
+  .param-value { font-weight: 600; font-size: 9pt; text-align: right; color: #1A1A1A; }
+  .param-value.missing { color: #8A8A8A; font-style: italic; font-weight: 400; }
+  .prep-grade-block {
+    padding: 10px; display: flex; align-items: center;
+    justify-content: space-between; background: #FAFBFD;
+  }
+  .prep-grade-block .param-label { font-size: 9pt; }
+  .prep-grade-block .param-value { font-size: 14pt; color: #233E99; }
+
+  /* Comments */
+  .comments-block { border: 1px solid #D8DCE6; margin-bottom: 10px; }
+  .comments-block .hdr {
+    background: #EEF1FA; color: #233E99;
+    text-transform: uppercase; font-weight: 700; letter-spacing: 0.5pt;
+    font-size: 7.5pt; padding: 4px 10px;
+    border-bottom: 1px solid #D8DCE6;
+  }
+  .comments-block .body { padding: 6px 10px; font-size: 8.5pt; min-height: 20px; }
+  .comments-block .body p { margin: 0 0 4px 0; }
+  .comments-block .body p.muted { color: #8A8A8A; font-style: italic; }
+
+  /* Sign-off */
+  .signoff {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
+    margin-top: 10px; page-break-inside: avoid;
+  }
+  .signoff-col { border: 1px solid #D8DCE6; }
+  .signoff-col .role {
+    background: #233E99; color: white; padding: 3px 10px;
+    font-size: 8pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5pt;
+    display: flex; justify-content: space-between;
+  }
+  .signoff-col .role .tag {
+    font-weight: 400; font-size: 7pt; color: #C7D3F0;
+    text-transform: none; letter-spacing: 0;
+  }
+  .signoff-col .body {
+    padding: 6px 10px; display: grid;
+    grid-template-columns: 70px 1fr 70px; gap: 8px; align-items: end;
+  }
+  .signoff-col .sig-area {
+    border: 1px solid #D8DCE6; height: 44px;
+    display: flex; align-items: center; justify-content: center;
+    background: #FAFBFD;
+    font-size: 7pt; color: #8A8A8A; font-style: italic;
+  }
+  .signoff-col .sig-area img { max-height: 40px; max-width: 100%; object-fit: contain; }
+  .signoff-col .pos { font-size: 8pt; }
+  .signoff-col .pos .label {
+    color: #555; text-transform: uppercase; font-size: 6.5pt; letter-spacing: 0.5pt;
+  }
+  .signoff-col .pos .val { font-weight: 600; font-size: 8.5pt; }
+  .signoff-col .dates { font-size: 7.5pt; text-align: right; }
+  .signoff-col .dates .label {
+    color: #555; text-transform: uppercase; font-size: 6.5pt; letter-spacing: 0.5pt;
+  }
+
+  /* Authorisation statement */
+  .auth-statement {
+    background: #FAFBFD;
+    border: 1px solid #D8DCE6;
+    padding: 8px 12px;
+    margin-top: 10px;
+    font-size: 8.5pt;
+    color: #1A1A1A;
+    font-style: italic;
+    line-height: 1.4;
+  }
+  .auth-statement strong {
+    display: block;
+    font-style: normal;
+    text-transform: uppercase;
+    letter-spacing: 0.5pt;
+    font-size: 7.5pt;
+    color: #233E99;
+    margin-bottom: 4px;
+  }
+
+  /* Coating log */
+  .coating-log { width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 8pt; }
+  .coating-log thead th {
+    background: #233E99; color: white; padding: 5px 6px;
+    font-size: 8.5pt; font-weight: 700;
+    border: 1px solid #233E99; letter-spacing: 0.3pt; text-transform: uppercase;
+  }
+  .coating-log thead th.param-col { text-align: left; width: 26%; }
+  .coating-log thead th.coat-col  { width: 18.5%; text-align: center; }
+  .coating-log tbody tr { page-break-inside: avoid; }
+  .coating-log tbody td {
+    border: 1px solid #D8DCE6; padding: 3px 6px; vertical-align: middle;
+  }
+  .coating-log tbody td.param-label {
+    background: #FAFBFD; font-weight: 600; color: #233E99; font-size: 8pt;
+  }
+  .coating-log tbody td.coat-val { text-align: center; font-weight: 500; color: #1A1A1A; }
+  .coating-log tbody td.coat-val.missing { color: #C5C9D1; }
+  .coating-log tbody tr.subheader td {
+    background: #EEF1FA; color: #233E99; font-weight: 700; text-align: center;
+    letter-spacing: 0.8pt; font-size: 8pt; padding: 4px 6px; border: 1px solid #D0D7E8;
+  }
+
+  .page-break { page-break-after: always; }
+
+  /* Photos */
+  .photo-cell {
+    border: 1px solid #D8DCE6; padding: 0; margin-bottom: 12px; page-break-inside: avoid;
+  }
+  .photo-cell .cap {
+    background: #FAFBFD; padding: 6px 10px;
+    border-bottom: 1px solid #D8DCE6;
+    font-size: 8.5pt; display: flex; justify-content: space-between;
+  }
+  .photo-cell .badge {
+    background: #233E99; color: white; font-family: monospace;
+    padding: 1px 6px; border-radius: 2px; font-size: 7pt; margin-right: 8px;
+  }
+  .photo-cell .tag {
+    background: #EEF1FA; color: #233E99; padding: 1px 6px;
+    border-radius: 2px; font-size: 7pt;
+    text-transform: uppercase; letter-spacing: 0.3pt;
+  }
+  .photo-cell .photo-body {
+    display: flex; align-items: center; justify-content: center;
+    padding: 6px; background: white;
+  }
+  .photo-cell .photo-body img { max-width: 100%; max-height: 180mm; object-fit: contain; }
+  .photo-cell .photo-body.missing {
+    height: 95mm; background: #EEF1FA; color: #8A8A8A;
+    font-style: italic; font-size: 9pt; text-align: center;
+  }
+
+  /* Owner chip */
+  .owner-chip {
+    display: inline-block; background: #EDEFF4; color: #3F4B66;
+    font-family: monospace; font-size: 7.5pt;
+    padding: 2px 6px; border-radius: 10px; margin-left: 6px;
+  }
+</style>
+</head>
+<body>
+
+{# ============================================================ #}
+{# PAGE 1 — Identification + ISO test record                    #}
+{# ============================================================ #}
+
+<div class="doc-head">
+  <img class="qr" src="{{ qr_asset }}" alt="QR code">
+  <div class="mid">
+    <h1>{{ form_code }} — {{ form_description }}</h1>
+    <div class="sub">
+      Report No. {{ ident.report_number or '—' }}  ·
+      Form No. {{ ident.form_number }}  ·
+      Status: {{ ident.status|upper }}
+    </div>
+  </div>
+  <img class="logo" src="{{ logo_asset }}" alt="The Spencer Group">
+</div>
+
+<div class="ident-strip">
+  <div class="ident-cell wide">
+    <div class="ident-label">Project</div>
+    <div class="ident-value">{{ ident.project_udf or ident.site_name or '—' }}</div>
+  </div>
+  <div class="ident-cell">
+    <div class="ident-label">Project Number</div>
+    <div class="ident-value">{{ ident.project_num or '—' }}</div>
+  </div>
+  <div class="ident-cell">
+    <div class="ident-label">Client</div>
+    <div class="ident-value">{{ ident.client or '—' }}</div>
+  </div>
+
+  <div class="ident-cell wide">
+    <div class="ident-label">Component</div>
+    <div class="ident-value">{{ ident.component or '—' }}</div>
+  </div>
+  <div class="ident-cell">
+    <div class="ident-label">Location</div>
+    <div class="ident-value">{{ ident.location or '—' }}</div>
+  </div>
+  <div class="ident-cell">
+    <div class="ident-label">Application Method</div>
+    <div class="ident-value">{{ ident.application_method or '—' }}</div>
+  </div>
+
+  <div class="ident-cell wide">
+    <div class="ident-label">Specification</div>
+    <div class="ident-value">{{ ident.specification or '—' }}</div>
+  </div>
+  <div class="ident-cell">
+    <div class="ident-label">Report No.</div>
+    <div class="ident-value">{{ ident.report_number or '—' }}</div>
+  </div>
+  <div class="ident-cell">
+    <div class="ident-label">Inspector</div>
+    <div class="ident-value">
+      {{ creator_fullname }}
+      <span class="owner-chip">{{ creator_initials }}</span>
+    </div>
+  </div>
+</div>
+
+{% for t in tests %}
+<div class="test-section">
+  <div class="test-section-header">
+    <div class="test-section-title">{{ t.title }}</div>
+    <div class="test-section-iso">Carried out in accordance with {{ t.iso }}</div>
+  </div>
+  <div class="test-section-body">
+    {% if t.title == 'Visual Assessment Post Blast' %}
+      {% for label, value in t.params %}
+      <div class="prep-grade-block">
+        <div class="param-label">{{ label }}</div>
+        <div class="param-value{% if not value %} missing{% endif %}">{{ value or '—' }}</div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="param-grid">
+        {% for label, value in t.params %}
+        <div class="param-cell">
+          <div class="param-label">{{ label }}</div>
+          <div class="param-value{% if not value %} missing{% endif %}">{{ value or '—' }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+
+<div class="comments-block">
+  <div class="hdr">Comments — Test Record</div>
+  <div class="body">
+    {% if comments and comments[0] %}
+      <p>{{ comments[0] }}</p>
+    {% else %}
+      <p class="muted">No comments recorded.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="page-break"></div>
+
+{# ============================================================ #}
+{# PAGE 2 — Coating application log                             #}
+{# ============================================================ #}
+
+<div class="doc-head">
+  <img class="qr" src="{{ qr_asset }}" alt="QR code">
+  <div class="mid">
+    <h1>{{ form_code }} — Coating Application Log</h1>
+    <div class="sub">
+      Report No. {{ ident.report_number or '—' }}  ·
+      Form No. {{ ident.form_number }}  ·
+      Component: {{ ident.component or '—' }}
+    </div>
+  </div>
+  <img class="logo" src="{{ logo_asset }}" alt="The Spencer Group">
+</div>
+
+<div class="ident-strip" style="grid-template-columns: repeat(3, 1fr);">
+  <div class="ident-cell">
+    <div class="ident-label">Project</div>
+    <div class="ident-value">{{ ident.project_udf or ident.site_name or '—' }}</div>
+  </div>
+  <div class="ident-cell">
+    <div class="ident-label">Client</div>
+    <div class="ident-value">{{ ident.client or '—' }}</div>
+  </div>
+  <div class="ident-cell">
+    <div class="ident-label">Project No.</div>
+    <div class="ident-value">{{ ident.project_num or '—' }}</div>
+  </div>
+</div>
+
+<table class="coating-log">
+  <thead>
+    <tr>
+      <th class="param-col">Parameter</th>
+      <th class="coat-col">1st Coat</th>
+      <th class="coat-col">2nd Coat</th>
+      <th class="coat-col">3rd Coat</th>
+      <th class="coat-col">4th Coat</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for group in coating_groups %}
+      {% if group.header %}
+      <tr class="subheader"><td colspan="5">{{ group.header }}</td></tr>
+      {% endif %}
+      {% for label, coats in group.rows %}
+      <tr>
+        <td class="param-label">{{ label }}</td>
+        {% for v in coats %}
+        <td class="coat-val{% if v is none or v == '' %} missing{% endif %}">{{ v if v not in (None, '') else '—' }}</td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    {% endfor %}
+  </tbody>
+</table>
+
+<div class="comments-block">
+  <div class="hdr">Comments — Coating Application</div>
+  <div class="body">
+    {% if comments and comments|length > 1 and comments[1] %}
+      <p>{{ comments[1] }}</p>
+    {% else %}
+      <p class="muted">No comments recorded.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="page-break"></div>
+
+{# ============================================================ #}
+{# PAGE 3 — Authorisation                                       #}
+{# ============================================================ #}
+
+<div class="doc-head">
+  <img class="qr" src="{{ qr_asset }}" alt="QR code">
+  <div class="mid">
+    <h1>{{ form_code }} — Authorisation</h1>
+    <div class="sub">
+      Report No. {{ ident.report_number or '—' }}  ·
+      Form No. {{ ident.form_number }}
+    </div>
+  </div>
+  <img class="logo" src="{{ logo_asset }}" alt="The Spencer Group">
+</div>
+
+<div class="auth-statement">
+  <strong>Certification</strong>
+  The undersigned certify that the inspection and coating application detailed in this report
+  were carried out in accordance with the referenced ISO standards and the project specification
+  ({{ ident.specification or '—' }}), and that the results reported herein are true and complete.
+</div>
+
+<div class="signoff" style="grid-template-columns: repeat(2, 1fr);">
+  {% for s in signoffs %}
+  <div class="signoff-col">
+    <div class="role">
+      <span>{{ s.role }}</span>
+      <span class="tag">{{ s.page }}</span>
+    </div>
+    <div class="body">
+      <div class="sig-area">
+        {% if s.signature_path %}
+          <img src="{{ s.signature_path }}" alt="signature">
+        {% else %}
+          (unsigned)
+        {% endif %}
+      </div>
+      <div class="pos">
+        <div class="label">Position / Qualification</div>
+        <div class="val">{{ s.position or '—' }}</div>
+      </div>
+      <div class="dates">
+        <div class="label">Date</div>
+        <div>{{ s.date_finished or s.date_started or '—' }}</div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% if photos %}
+<div class="page-break"></div>
+
+{# ============================================================ #}
+{# PAGE 4+ — Photo appendix                                     #}
+{# ============================================================ #}
+
+<div class="doc-head">
+  <img class="qr" src="{{ qr_asset }}" alt="QR code">
+  <div class="mid">
+    <h1>{{ form_code }} — Photographic Appendix</h1>
+    <div class="sub">
+      Report No. {{ ident.report_number or '—' }}  ·
+      {{ photos|length }} photo{{ 's' if photos|length != 1 else '' }}
+    </div>
+  </div>
+  <img class="logo" src="{{ logo_asset }}" alt="The Spencer Group">
+</div>
+
+{% for p in photos %}
+<div class="photo-cell">
+  <div class="cap">
+    <span>
+      <span class="badge">#{{ p.n }}</span>
+      <strong>{{ p.filename }}</strong>
+    </span>
+    <span class="tag">
+      Attached to: {{ p.attached_to_field }}{% if p.attached_to_value %} — {{ p.attached_to_value }}{% endif %}
+    </span>
+  </div>
+  {% if p.local_path %}
+  <div class="photo-body">
+    <img src="{{ p.local_path }}" alt="{{ p.filename }}">
+  </div>
+  {% else %}
+  <div class="photo-body missing">
+    (photo cache miss — refresh photos for this form)
+  </div>
+  {% endif %}
+</div>
+{% endfor %}
+{% endif %}
+
+</body>
+</html>

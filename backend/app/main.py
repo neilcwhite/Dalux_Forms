@@ -36,6 +36,10 @@ TEMPLATES_WITH_CUSTOM_REPORT = {
         "code": "CS037",
         "display": "CS037 — Permit to undertake hot work",
     },
+    "Protective Coating Inspection (Complete)": {
+        "code": "CS208",
+        "display": "CS208 — Protective Coating Inspection Report",
+    },
 }
 
 

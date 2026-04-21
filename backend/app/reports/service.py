@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from weasyprint import HTML
 from app.config import settings
-from app.reports import cs053, cs037
+from app.reports import cs053, cs037, cs208
 
 # --- Paths ---
 BACKEND_ROOT = Path(__file__).parent.parent.parent
@@ -34,6 +34,7 @@ REPORTS_CACHE.mkdir(exist_ok=True)
 TEMPLATE_HANDLERS = {
     "Weekly Safety inspection": cs053,
     "Permit to Undertake Hot Work": cs037,
+    "Protective Coating Inspection (Complete)": cs208,
 }
 
 
