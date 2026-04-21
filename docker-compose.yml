@@ -21,6 +21,10 @@ services:
       # App settings
       APP_NAME: ${APP_NAME:-Dalux Report Portal}
       DEBUG: ${DEBUG:-false}
+      # Teams notifications (Power Automate HTTP trigger)
+      NOTIFY_POWER_AUTOMATE_URL: ${NOTIFY_POWER_AUTOMATE_URL:-}
+      APP_PUBLIC_URL: ${APP_PUBLIC_URL:-http://localhost:8000}
+      NOTIFY_ENABLED: ${NOTIFY_ENABLED:-false}
     volumes:
       - ./backend/data:/app/backend/data
       - ./backend/photo_cache:/app/backend/photo_cache

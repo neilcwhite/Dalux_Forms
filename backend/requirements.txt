@@ -8,3 +8,4 @@ weasyprint==60.1
 requests==2.31.0
 pydantic==2.5.0
 tzdata==2026.1
+apscheduler==3.10.4

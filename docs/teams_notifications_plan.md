@@ -5,14 +5,21 @@
 | Date | Milestone | Status |
 |---|---|---|
 | 2026-04-21 | Architecture agreed, plan written | ✅ Done |
-| — | `NotificationSent` model + migration | ⬜ Not started |
-| — | `notifications/service.py` — candidate query + dedup | ⬜ Not started |
-| — | `notifications/scheduler.py` — APScheduler cron | ⬜ Not started |
-| — | `notifications/backfill.py` — one-shot bootstrap | ⬜ Not started |
-| — | Config vars wired (`NOTIFY_POWER_AUTOMATE_URL`, `APP_PUBLIC_URL`, `NOTIFY_ENABLED`) | ⬜ Not started |
-| — | Power Automate flow created + URL shared | ⬜ Not started |
-| — | Staging: first end-to-end notification received | ⬜ Not started |
-| — | Prod deploy + bootstrap backfill run | ⬜ Not started |
+| 2026-04-21 | `NotificationSent` model added to `models.py`; SQLite schema auto-created on startup | ✅ Done |
+| 2026-04-21 | `notifications/service.py` — candidate query + dedup + Power Automate POST | ✅ Done |
+| 2026-04-21 | `notifications/scheduler.py` — APScheduler cron at :30 past the hour 07:30–19:30 Europe/London | ✅ Done |
+| 2026-04-21 | `notifications/backfill.py` + `notifications/run_now.py` CLIs | ✅ Done |
+| 2026-04-21 | Config vars wired (`NOTIFY_POWER_AUTOMATE_URL`, `APP_PUBLIC_URL`, `NOTIFY_ENABLED`); docker-compose updated | ✅ Done |
+| 2026-04-21 | Scheduler wired into FastAPI lifespan (`main.py`) | ✅ Done |
+| 2026-04-21 | `apscheduler==3.10.4` added to requirements and installed | ✅ Done |
+| 2026-04-21 | Smoke test: 32 live candidates detected; next scheduled run 08:30 BST; `NOTIFY_ENABLED=false` short-circuits correctly | ✅ Done |
+| 2026-04-21 | Power Automate flow created (workflow id `235d34887424418c...`); test card landed in doc-control channel | ✅ Done |
+| 2026-04-21 | Dev bootstrap run: 32 existing closed forms marked `bootstrap`; dedup confirmed (post-bootstrap candidates = 0) | ✅ Done |
+| 2026-04-21 | Dev `NOTIFY_ENABLED=true` | ✅ Done |
+| — | **Prod deploy**: set `NOTIFY_POWER_AUTOMATE_URL`, `APP_PUBLIC_URL=<real https URL>`, leave `NOTIFY_ENABLED=false` initially | ⬜ Not started |
+| — | **Prod bootstrap**: run `python -m app.notifications.backfill` on prod container BEFORE enabling | ⬜ Not started |
+| — | Prod `NOTIFY_ENABLED=true` + restart | ⬜ Not started |
+| — | Observe first real notification fire (wait for a form to close + next :30 run) | ⬜ Not started |
 
 _Claude: update this table as work lands — mark status, add date, note surprises or deviations from the plan below._
 
