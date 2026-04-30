@@ -543,9 +543,11 @@ def dashboard_project(
         c["forms"] += 1
     contributors = sorted(contrib_counts.values(), key=lambda x: x["forms"], reverse=True)[:5]
 
-    # Recent forms (last 8)
+    # Recent forms — show enough that the per-site picker can do meaningful
+    # bulk downloads (e.g. a monthly batch). FormsPage at /forms?site=…
+    # remains the path beyond this cap.
     recent = []
-    for f in forms[:8]:
+    for f in forms[:50]:
         cls = _classify_form(f, download_data.get(f["formId"]))
         status_label = "Downloaded" if cls == "downloaded" else "Stale" if cls == "stale" else (
             "Closed" if f.get("status") == "closed" else "Open"

@@ -8,7 +8,7 @@ import {
   type Site,
   type SiteTemplateSummary,
 } from "../api";
-import { Card, Tag, Button, PageHeader, LoadingPanel, ErrorPanel } from "../components/ui";
+import { Card, Tag, PageHeader, LoadingPanel, ErrorPanel } from "../components/ui";
 
 export default function SitesPage() {
   const sitesQ = useQuery({ queryKey: ["sites"], queryFn: fetchSites });
@@ -154,8 +154,19 @@ function SiteRow({
     ? Math.round(((sum.total_forms - sum.undownloaded_forms) / sum.total_forms) * 100)
     : 100;
 
+  // Mapped sites click through to the project dashboard. Unmapped projects
+  // (no SOS) don't have a project dashboard — fall back to the forms list
+  // filtered by their Dalux project ID.
+  const target = site.sos_number
+    ? `/sites/${encodeURIComponent(site.sos_number)}`
+    : `/forms?site=${encodeURIComponent(site.dalux_id)}`;
+
   return (
-    <div className="flex items-center gap-3 px-4 py-2.5">
+    <Link
+      to={target}
+      className="flex items-center gap-3 px-4 py-2.5 hover:bg-[var(--color-surface-sunken)] transition-colors no-underline"
+      style={{ color: "inherit" }}
+    >
       {site.sos_number ? (
         <Tag tone="brand">{site.sos_number}</Tag>
       ) : (
@@ -216,9 +227,7 @@ function SiteRow({
         </>
       )}
 
-      <Link to={`/forms?site=${encodeURIComponent(site.dalux_id)}`}>
-        <Button size="sm" variant="ghost">Open →</Button>
-      </Link>
-    </div>
+      <span className="text-[14px] shrink-0" style={{ color: "var(--color-text-faint)" }}>›</span>
+    </Link>
   );
 }

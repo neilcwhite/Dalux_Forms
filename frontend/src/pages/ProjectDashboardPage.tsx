@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Tag, LoadingPanel, ErrorPanel } from "../components/ui";
 import { Kpi, VelocityGrid, SectionCard, RangePill } from "../components/dashboard/kpi";
 import { Sparkline, BarChart, Donut, sectorColor } from "../components/dashboard/charts";
@@ -7,13 +8,104 @@ import { fetchProjectDashboard } from "../api";
 
 export default function ProjectDashboardPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { sosNumber } = useParams<{ sosNumber: string }>();
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [singleBusy, setSingleBusy] = useState<string | null>(null);
 
   const projectQ = useQuery({
     queryKey: ["dashboard-project", sosNumber, "30d"],
     queryFn: () => fetchProjectDashboard(sosNumber!, "30d"),
     enabled: !!sosNumber,
   });
+
+  function toggleRow(formId: string) {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(formId)) next.delete(formId); else next.add(formId);
+      return next;
+    });
+  }
+
+  async function downloadOne(formId: string, formNumber: string, status: string) {
+    if (status !== "Closed" && status !== "Downloaded" && status !== "Stale") {
+      const ok = window.confirm(
+        `This form's status is "${status}" — it has not been closed yet.\n` +
+        `The PDF may not reflect the final state.\n\nDownload anyway?`
+      );
+      if (!ok) return;
+    }
+    setSingleBusy(formId);
+    try {
+      const resp = await fetch(`/api/forms/${formId}/download`);
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+        alert(`Download failed: ${err.detail ?? resp.statusText}`);
+        return;
+      }
+      const blob = await resp.blob();
+      const disposition = resp.headers.get("Content-Disposition") ?? "";
+      const match = /filename="([^"]+)"/.exec(disposition);
+      const filename = match?.[1] ?? `${formNumber || formId}.pdf`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+      // Refresh project data so status pills update
+      queryClient.invalidateQueries({ queryKey: ["dashboard-project", sosNumber] });
+    } catch (e) {
+      alert(`Download error: ${(e as Error).message}`);
+    } finally {
+      setSingleBusy(null);
+    }
+  }
+
+  async function downloadSelectedAsZip() {
+    if (selected.size === 0) return;
+    const recent = projectQ.data?.recent ?? [];
+    const openSelected = recent.filter(
+      r => selected.has(r.form_id) && r.status !== "Closed" && r.status !== "Downloaded" && r.status !== "Stale"
+    );
+    if (openSelected.length > 0) {
+      const sample = openSelected.slice(0, 5).map(r => `  • ${r.number} (${r.status})`).join("\n");
+      const more = openSelected.length > 5 ? `\n  …and ${openSelected.length - 5} more` : "";
+      const ok = window.confirm(
+        `${openSelected.length} of ${selected.size} selected form(s) are not closed yet — ` +
+        `their PDFs may not reflect the final state:\n\n${sample}${more}\n\nDownload anyway?`
+      );
+      if (!ok) return;
+    }
+    setBulkBusy(true);
+    try {
+      const resp = await fetch("/api/forms/bulk-download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ form_ids: Array.from(selected) }),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+        alert(`Bulk download failed: ${typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)}`);
+        return;
+      }
+      const blob = await resp.blob();
+      const disposition = resp.headers.get("Content-Disposition") ?? "";
+      const match = /filename="([^"]+)"/.exec(disposition);
+      const filename = match?.[1] ?? "forms.zip";
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+      const failed = Number(resp.headers.get("X-Failed-Count") ?? "0");
+      if (failed > 0) alert(`${failed} form(s) could not be generated and were skipped.`);
+      setSelected(new Set());
+      queryClient.invalidateQueries({ queryKey: ["dashboard-project", sosNumber] });
+    } catch (e) {
+      alert(`Bulk download error: ${(e as Error).message}`);
+    } finally {
+      setBulkBusy(false);
+    }
+  }
 
   if (!sosNumber) return <div className="p-6"><ErrorPanel>No SOS number provided in URL.</ErrorPanel></div>;
   if (projectQ.isLoading) return <LoadingPanel>Loading {sosNumber}…</LoadingPanel>;
@@ -190,41 +282,122 @@ export default function ProjectDashboardPage() {
       </div>
 
       {/* Recent forms */}
-      <SectionCard
-        title="Recent forms"
-        subtitle="Latest activity on this site"
-        action={<a href={`/forms?site=${site.dalux_id}`} className="text-[12px]" style={{ color: "var(--color-brand-600)" }}>All forms →</a>}
-      >
-        {p.recent.length === 0 ? (
-          <div className="p-8 text-center text-[12.5px]" style={{ color: "var(--color-text-faint)" }}>No recent forms.</div>
-        ) : (
-          <table className="w-full text-[12.5px]">
-            <thead>
-              <tr style={{ background: "var(--color-surface-sunken)" }}>
-                <Th>Form</Th><Th>Template</Th><Th>Raised by</Th><Th>When</Th><Th>Status</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {p.recent.map(r => (
-                <tr key={r.form_id} className="border-t hover:bg-[var(--color-surface-sunken)]" style={{ borderColor: "var(--color-border)" }}>
-                  <Td><span className="tabular font-medium" style={{ fontFamily: "var(--font-mono)" }}>{r.number}</span></Td>
-                  <Td className="truncate max-w-[260px]" title={r.template}>{r.template}</Td>
-                  <Td style={{ color: "var(--color-text-muted)" }}>{r.by}</Td>
-                  <Td style={{ color: "var(--color-text-muted)" }}>{relativeTime(r.when_iso)}</Td>
-                  <Td>
-                    <Tag tone={
-                      r.status === "Downloaded" ? "success"
-                      : r.status === "Stale"    ? "danger"
-                      : r.status === "Closed"   ? "info"
-                      : "warning"
-                    }>{r.status}</Tag>
-                  </Td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </SectionCard>
+      {(() => {
+        const allSelectable = p.recent.every(r => selected.has(r.form_id));
+        function toggleAll() {
+          setSelected(prev => {
+            const next = new Set(prev);
+            if (allSelectable) p.recent.forEach(r => next.delete(r.form_id));
+            else p.recent.forEach(r => next.add(r.form_id));
+            return next;
+          });
+        }
+        return (
+          <SectionCard
+            title="Recent forms"
+            subtitle={`Latest activity on this site · pick one or many to download${p.recent.length >= 50 ? ` (showing first 50)` : ""}`}
+            action={<a href={`/forms?site=${site.dalux_id}`} className="text-[12px]" style={{ color: "var(--color-brand-600)" }}>All forms →</a>}
+          >
+            {p.recent.length === 0 ? (
+              <div className="p-8 text-center text-[12.5px]" style={{ color: "var(--color-text-faint)" }}>No recent forms.</div>
+            ) : (
+              <table className="w-full text-[12.5px]">
+                <thead>
+                  <tr style={{ background: "var(--color-surface-sunken)" }}>
+                    <th className="px-4 py-2.5 w-8">
+                      <input
+                        type="checkbox"
+                        checked={p.recent.length > 0 && allSelectable}
+                        onChange={toggleAll}
+                        title="Select all forms shown"
+                        className="h-3.5 w-3.5 accent-[var(--color-brand-600)]"
+                      />
+                    </th>
+                    <Th>Form</Th><Th>Template</Th><Th>Raised by</Th><Th>When</Th><Th>Status</Th>
+                    <th className="px-4 py-2.5 text-right font-semibold text-[11px] uppercase tracking-wider" style={{ color: "var(--color-text-faint)" }}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {p.recent.map(r => {
+                    const isSelected = selected.has(r.form_id);
+                    const isBusy = singleBusy === r.form_id;
+                    return (
+                      <tr
+                        key={r.form_id}
+                        className="border-t hover:bg-[var(--color-surface-sunken)]"
+                        style={{
+                          borderColor: "var(--color-border)",
+                          background: isSelected ? "var(--color-brand-50)" : undefined,
+                        }}
+                      >
+                        <td className="px-4 py-2.5">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleRow(r.form_id)}
+                            className="h-3.5 w-3.5 accent-[var(--color-brand-600)]"
+                          />
+                        </td>
+                        <Td><span className="tabular font-medium" style={{ fontFamily: "var(--font-mono)" }}>{r.number}</span></Td>
+                        <Td className="truncate max-w-[260px]" title={r.template}>{r.template}</Td>
+                        <Td style={{ color: "var(--color-text-muted)" }}>{r.by}</Td>
+                        <Td style={{ color: "var(--color-text-muted)" }}>{relativeTime(r.when_iso)}</Td>
+                        <Td>
+                          <Tag tone={
+                            r.status === "Downloaded" ? "success"
+                            : r.status === "Stale"    ? "danger"
+                            : r.status === "Closed"   ? "info"
+                            : "warning"
+                          }>{r.status}</Tag>
+                        </Td>
+                        <td className="px-4 py-2.5 text-right">
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            disabled={isBusy}
+                            onClick={() => downloadOne(r.form_id, r.number, r.status)}
+                          >
+                            {isBusy ? "…" : "Download"}
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </SectionCard>
+        );
+      })()}
+
+      {/* Floating bulk action */}
+      {selected.size > 0 && (
+        <div
+          className="fixed bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-3 px-4 py-2 rounded-full shadow-lg border z-50"
+          style={{ background: "var(--color-surface-raised)", borderColor: "var(--color-border-strong)" }}
+        >
+          <span className="text-[13px] font-medium tabular">{selected.size} selected</span>
+          <button
+            onClick={() => setSelected(new Set())}
+            className="text-[12px] hover:underline"
+            disabled={bulkBusy}
+            style={{ color: "var(--color-text-muted)" }}
+          >Clear</button>
+          <Button
+            variant="primary"
+            onClick={downloadSelectedAsZip}
+            disabled={bulkBusy}
+            leadingIcon={bulkBusy && (
+              <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" opacity="0.25" />
+                <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+              </svg>
+            )}
+          >
+            {bulkBusy ? "Generating ZIP…" : `Download ${selected.size} as ZIP`}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
