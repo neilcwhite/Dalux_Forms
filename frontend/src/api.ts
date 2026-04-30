@@ -100,3 +100,35 @@ export async function fetchForms(params: {
   const { data } = await api.get<FormsResponse>("/api/forms", { params });
   return data;
 }
+
+// --- Admin -----------------------------------------------------------------
+
+export type ProjectStatus = "mapped" | "unmapped" | "hidden";
+
+export interface AdminProject {
+  dalux_project_id: string;
+  dalux_project_name: string;
+  dalux_project_number: string | null;
+  sos_number: string | null;
+  site_name: string | null;
+  status: ProjectStatus;
+}
+
+export async function fetchAdminProjects(): Promise<AdminProject[]> {
+  const { data } = await api.get<AdminProject[]>("/api/admin/projects");
+  return data;
+}
+
+export async function hideProject(daluxProjectId: string): Promise<{ hidden: true }> {
+  const { data } = await api.post<{ hidden: true }>(
+    `/api/admin/projects/${encodeURIComponent(daluxProjectId)}/hide`,
+  );
+  return data;
+}
+
+export async function unhideProject(daluxProjectId: string): Promise<{ hidden: false }> {
+  const { data } = await api.post<{ hidden: false }>(
+    `/api/admin/projects/${encodeURIComponent(daluxProjectId)}/unhide`,
+  );
+  return data;
+}

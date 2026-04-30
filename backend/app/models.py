@@ -45,3 +45,14 @@ class NotificationSent(AppBase):
         UniqueConstraint("form_id", "form_modified_at", name="uq_notifications_form_modified"),
         Index("ix_notifications_form", "form_id", "form_modified_at"),
     )
+
+
+class HiddenProject(AppBase):
+    """Admin: Dalux projects manually hidden from the admin worklist.
+    UI concern only — does not affect form filtering, sites listing, or
+    report generation. A hidden project still renders correctly if a form
+    is downloaded against it."""
+    __tablename__ = "hidden_projects"
+
+    dalux_project_id = Column(String(64), primary_key=True)
+    hidden_at = Column(DateTime, server_default=func.now(), nullable=False)

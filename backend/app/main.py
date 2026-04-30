@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import get_db, get_app_db, app_engine, AppBase
 from app import models  # noqa: F401
-from app.models import Download
+from app.models import Download, HiddenProject
 from app.reports.service import generate_report, ReportError
 from app.notifications import scheduler as notifications_scheduler
 
@@ -405,3 +405,79 @@ def bulk_download(
             "X-Failed-Count": str(len(failures)),
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# Admin — project status (mapped / unmapped / hidden)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/admin/projects")
+def admin_list_projects(
+    db: Session = Depends(get_db),
+    app_db: Session = Depends(get_app_db),
+):
+    """Return all Dalux projects with derived status. Hidden state takes
+    precedence over mapped/unmapped — explicit user action wins."""
+    rows = db.execute(text("""
+        SELECT
+            p.projectId   AS dalux_project_id,
+            p.projectName AS dalux_project_name,
+            p.number      AS dalux_project_number,
+            s.sos_number  AS sos_number,
+            s.site_name   AS site_name
+        FROM DLX_2_projects p
+        LEFT JOIN sheq_sites s
+          ON s.dalux_id COLLATE utf8mb4_unicode_ci = p.projectId COLLATE utf8mb4_unicode_ci
+        ORDER BY p.projectName
+    """)).mappings().all()
+
+    hidden_ids = {h.dalux_project_id for h in app_db.query(HiddenProject).all()}
+
+    out = []
+    for r in rows:
+        d = dict(r)
+        if d["dalux_project_id"] in hidden_ids:
+            status = "hidden"
+        elif d["sos_number"] is not None:
+            status = "mapped"
+        else:
+            status = "unmapped"
+        d["status"] = status
+        out.append(d)
+    return out
+
+
+class _HideResponse(BaseModel):
+    hidden: bool
+
+
+@app.post("/api/admin/projects/{dalux_project_id}/hide", response_model=_HideResponse)
+def admin_hide_project(
+    dalux_project_id: str,
+    db: Session = Depends(get_db),
+    app_db: Session = Depends(get_app_db),
+):
+    """Idempotent hide. 404 if the project doesn't exist in DLX_2_projects."""
+    exists = db.execute(text(
+        "SELECT 1 FROM DLX_2_projects WHERE projectId = :pid LIMIT 1"
+    ), {"pid": dalux_project_id}).first()
+    if not exists:
+        raise HTTPException(status_code=404, detail=f"Dalux project {dalux_project_id} not found")
+
+    if not app_db.get(HiddenProject, dalux_project_id):
+        app_db.add(HiddenProject(dalux_project_id=dalux_project_id))
+        app_db.commit()
+    return _HideResponse(hidden=True)
+
+
+@app.post("/api/admin/projects/{dalux_project_id}/unhide", response_model=_HideResponse)
+def admin_unhide_project(
+    dalux_project_id: str,
+    app_db: Session = Depends(get_app_db),
+):
+    """Idempotent unhide."""
+    row = app_db.get(HiddenProject, dalux_project_id)
+    if row is not None:
+        app_db.delete(row)
+        app_db.commit()
+    return _HideResponse(hidden=False)

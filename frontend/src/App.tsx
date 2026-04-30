@@ -1,8 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import NavBar from "./components/NavBar";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { useEffect } from "react";
+import Sidebar from "./components/Sidebar";
+import TopBar from "./components/TopBar";
+import DashboardPage from "./pages/DashboardPage";
 import SitesPage from "./pages/SitesPage";
 import FormsPage from "./pages/FormsPage";
+import AdminPage from "./pages/AdminPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -14,21 +18,31 @@ const queryClient = new QueryClient({
 });
 
 export default function App() {
+  // DARK_MODE_HOOK — read persisted preference on mount.
+  useEffect(() => {
+    const saved = localStorage.getItem("dalux:mode");
+    if (saved === "dark" || saved === "light") {
+      document.documentElement.setAttribute("data-mode", saved);
+    }
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <div className="max-w-6xl mx-auto p-6">
-          <header className="mb-4 pb-3 border-b-2 border-[#233E99]">
-            <h1 className="text-2xl font-bold text-[#233E99]">Dalux Report Portal</h1>
-            <p className="text-sm text-gray-600 mt-1">Local prototype · connected to live MariaDB</p>
-          </header>
-
-          <NavBar />
-
-          <Routes>
-            <Route path="/" element={<FormsPage />} />
-            <Route path="/sites" element={<SitesPage />} />
-          </Routes>
+        <div className="flex h-screen w-screen overflow-hidden bg-[var(--color-surface)] text-[var(--color-text)]">
+          <Sidebar />
+          <div className="flex-1 flex flex-col min-w-0">
+            <TopBar />
+            <main className="flex-1 overflow-auto">
+              <Routes>
+                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/forms" element={<FormsPage />} />
+                <Route path="/sites" element={<SitesPage />} />
+                <Route path="/admin" element={<AdminPage />} />
+              </Routes>
+            </main>
+          </div>
         </div>
       </BrowserRouter>
     </QueryClientProvider>
