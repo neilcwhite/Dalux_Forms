@@ -214,3 +214,123 @@ export async function deleteTemplateVersion(formCode: string, version: number, a
   );
   return data;
 }
+
+// --- Dashboard --------------------------------------------------------------
+
+export type DashboardRange = "7d" | "30d" | "90d" | "1y" | "all";
+
+export interface DashboardSector {
+  name: string;
+  sites: number;
+  active: number;
+  dormant: number;
+  total: number;
+  downloaded: number;
+  pending: number;
+  stale: number;
+  trend: number[];
+}
+
+export interface DashboardAttentionRow {
+  dalux_id: string;
+  sos_number: string | null;
+  site_name: string;
+  sector: string;
+  total: number;
+  downloaded: number;
+  pending: number;
+  stale: number;
+  pct: number;
+}
+
+export interface DashboardGroupResponse {
+  range: DashboardRange;
+  sectors: DashboardSector[];
+  attention: DashboardAttentionRow[];
+}
+
+export async function fetchDashboardGroup(range: DashboardRange = "90d"): Promise<DashboardGroupResponse> {
+  const { data } = await api.get<DashboardGroupResponse>("/api/dashboard/group", { params: { range } });
+  return data;
+}
+
+export interface DashboardSectorDetailed extends DashboardSector {
+  open_to_closed_days: number | null;
+  closed_to_dl_days: number | null;
+  coverage: number;
+  top_project: string | null;
+  top_project_forms: number;
+  top_templates: { name: string; count: number }[];
+}
+
+export interface DashboardSectorsResponse {
+  range: DashboardRange;
+  sectors: DashboardSectorDetailed[];
+}
+
+export async function fetchDashboardSectors(range: DashboardRange = "90d"): Promise<DashboardSectorsResponse> {
+  const { data } = await api.get<DashboardSectorsResponse>("/api/dashboard/sectors", { params: { range } });
+  return data;
+}
+
+export interface ProjectDashboardSite {
+  sos_number: string | null;
+  dalux_id: string | null;
+  name: string;
+  sector: string;
+  client: string | null;
+  status: string;
+  primary_contact: string | null;
+  start_on_site_date: string | null;
+  finish_on_site_date: string | null;
+}
+
+export interface ProjectDashboardResponse {
+  site: ProjectDashboardSite;
+  range: DashboardRange;
+  daily: number[];
+  total: number;
+  downloaded: number;
+  pending: number;
+  stale: number;
+  open_to_closed_days: number | null;
+  closed_to_dl_days: number | null;
+  templates: { name: string; count: number }[];
+  contributors: { name: string; role: string | null; forms: number }[];
+  recent: {
+    form_id: string;
+    number: string;
+    template: string;
+    by: string;
+    when_iso: string | null;
+    status: string;
+  }[];
+}
+
+export async function fetchProjectDashboard(sosNumber: string, range: DashboardRange = "30d"): Promise<ProjectDashboardResponse> {
+  const { data } = await api.get<ProjectDashboardResponse>(
+    `/api/dashboard/projects/${encodeURIComponent(sosNumber)}`,
+    { params: { range } },
+  );
+  return data;
+}
+
+export interface ActivityEvent {
+  kind: "form_created" | "download" | "bulk_download" | string;
+  icon: string;
+  tone: "ok" | "warn" | "info" | "err" | string;
+  at: string | null;
+  text: string;
+  form_id: string | null;
+  sos_number: string | null;
+}
+
+export interface ActivityResponse {
+  since: string;
+  events: ActivityEvent[];
+}
+
+export async function fetchActivity(since: "24h" | "7d" | "30d" = "24h", limit = 20): Promise<ActivityResponse> {
+  const { data } = await api.get<ActivityResponse>("/api/activity", { params: { since, limit } });
+  return data;
+}

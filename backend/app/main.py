@@ -18,12 +18,14 @@ from app.reports.service import generate_report, ReportError
 from app.notifications import scheduler as notifications_scheduler
 from app.templates_userland import loader as template_loader
 from app.templates_userland.admin import router as templates_admin_router
+from app.dashboard import router as dashboard_router
 
 app = FastAPI(
     title=settings.APP_NAME,
     debug=settings.DEBUG,
 )
 app.include_router(templates_admin_router)
+app.include_router(dashboard_router)
 
 
 @app.on_event("startup")

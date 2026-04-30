@@ -3,10 +3,18 @@
    they follow light/dark mode automatically.
    ============================================================ */
 
+// Real sectors per sheq_sites.sector: "Build & Civils", "Bridges", "Rail",
+// "M&E", "Humber Quays", "Design", plus an "Unassigned" fallback. Colours
+// chosen to stay distinct in both light and dark mode.
 export const SECTOR_COLORS: Record<string, string> = {
-  "Rail":              "#1B7A4D",
-  "Building & Civils": "#233E99",
-  "Bridges":           "#B86A00",
+  "Build & Civils":    "#233E99",  // brand blue
+  "Building & Civils": "#233E99",  // older spelling, same colour
+  "Rail":              "#1B7A4D",  // green
+  "Bridges":           "#B86A00",  // amber
+  "M&E":               "#7C3AED",  // purple
+  "Humber Quays":      "#0891B2",  // teal
+  "Design":            "#DB2777",  // magenta
+  "Unassigned":        "#6B7280",  // grey — represents "no sector set"
 };
 
 export function sectorColor(name: string): string {
