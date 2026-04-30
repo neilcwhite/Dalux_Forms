@@ -4,48 +4,81 @@
 
 **What's being deployed:** A FastAPI backend + a React frontend (served by nginx), both packaged as Docker containers via `docker-compose`. Connects to the existing MariaDB on the same host to read Dalux sync data. Generates PDF reports and posts Teams notifications via a Power Automate webhook.
 
-**Who asked for this:** Neil White (neil.white@thespencergroup.co.uk).
+**Repo:** `https://github.com/neilcwhite/Dalux_Forms.git`
+
+**Originator:** Neil White (neil.white@thespencergroup.co.uk) — only contact him for the items in §"What you need from Neil" below; everything else is in this document.
 
 ---
 
-## What you need
+## Before you start — secrets and choices checklist
 
-- Docker + docker-compose on the server (already present — you use it for MariaDB / n8n)
-- Network reachability to the existing MariaDB instance on `DBHUB.cspencerltd.co.uk:3306` (should be trivial since it's on the same host)
+Collect / decide these once, up front. Each maps to a `.env` variable in Step 2.
+
+| Item | Source / how to get it |
+|---|---|
+| **DB_USER, DB_PASSWORD** for the SHEQ database | IT-managed. The app is **read-only** on MariaDB — needs `SELECT` on all `DLX_2_*` tables and `sheq_sites` in the `SHEQ` schema. Either **(a)** provision a new read-only user (recommended; suggested name: `dalux_forms_app`), or **(b)** reuse an existing reader account if you have one. Whatever account already runs the n8n Dalux sync has more privileges than this app needs. |
+| **DALUX_API_KEY** | The same `X-API-KEY` value the existing n8n Dalux-sync workflow uses. Take it from your n8n credentials store; the app uses it identically — only to download photo attachments on demand. |
+| **APP_PUBLIC_URL** | Your decision. Whatever URL Spencer staff will type into a browser to reach the app, e.g. `http://dalux-forms.cspencerltd.co.uk` (set up internal DNS) or `http://<server-ip>` (no DNS). It's embedded in the "Download PDF" buttons inside Teams notifications, so it must be reachable from a workstation on VPN. |
+| **ADMIN_UPLOAD_TOKEN** | You generate it. Run `openssl rand -hex 32` (or equivalent) and store it in your normal secrets manager. Share with Neil so he can use the template-upload admin UI. |
+| **NOTIFY_POWER_AUTOMATE_URL** | Neil sends this via the company password manager (it's the SAS-signed URL of an existing Power Automate flow he built). Alternatively, you can build your own flow — see §"What you need from Neil" → "Power Automate flow (alternative: build your own)" below. |
+
+**That's the full list.** Everything else (`INITIAL_ADMIN_EMAILS`, `INITIAL_ADMIN_PASSWORD`, etc.) is pre-filled with sensible defaults below.
+
+---
+
+## What you need from Neil
+
+Just one item — everything else above is yours to source:
+
+1. **`NOTIFY_POWER_AUTOMATE_URL`** — the URL of the Power Automate flow that posts Teams notifications to the doc-control channel. He'll send this via the company password manager.
+
+If you'd rather build your own flow (e.g. you want it owned by an IT service account rather than Neil's), the steps are at the end of this doc in §"Power Automate flow (alternative: build your own)". Either path works.
+
+---
+
+## What you need on the server
+
+- Docker + docker-compose (already present — you use them for MariaDB / n8n)
+- Network reachability to MariaDB on `DBHUB.cspencerltd.co.uk:3306` (trivial since it's on the same host)
 - Outbound HTTPS to:
   - `https://node2.field.dalux.com` (Dalux API — photo downloads)
-  - `https://default1cba2c5f4b4449ffbc9a4b83f5d6e6.bb.environment.api.powerplatform.com` (Power Automate webhook for Teams)
-- A published internal URL for colleagues to reach the frontend, e.g. `http://dalux-forms.cspencerltd.co.uk` or `http://<server-ip>:80`
+  - `https://*.api.powerplatform.com` (Power Automate webhook for Teams notifications — can be locked down to the specific subdomain in `NOTIFY_POWER_AUTOMATE_URL` once known)
+- One TCP port chosen for the frontend (default 80 in `docker-compose.yml`; change the `ports:` mapping if 80 is taken)
 
 ---
 
 ## Step 1 — Clone the repository
 
-Somewhere on the server (e.g. `/opt/dalux-forms/`):
+Somewhere on the server (suggested: `/opt/dalux-forms/`):
 
 ```bash
-git clone https://github.com/<org>/Dalux_Forms.git /opt/dalux-forms
+git clone https://github.com/neilcwhite/Dalux_Forms.git /opt/dalux-forms
 cd /opt/dalux-forms
 ```
-
-*(Ask Neil for the correct repo URL if unclear.)*
 
 ---
 
 ## Step 2 — Create `.env` with production secrets
 
-Create `/opt/dalux-forms/backend/.env` (Neil will provide the exact values):
+Copy the template and fill it in:
+
+```bash
+cp backend/.env.example backend/.env
+chmod 600 backend/.env
+```
+
+Then edit `backend/.env`. Replace the four placeholders below with the values from your Before-you-start checklist; the rest is already correct:
 
 ```env
-# MariaDB (same host — can use 127.0.0.1 or container network if MariaDB is also in Docker)
+# MariaDB (read-only access — the app never writes here)
 DB_HOST=DBHUB.cspencerltd.co.uk
 DB_PORT=3306
-DB_USER=<mariadb-user>
-DB_PASSWORD=<mariadb-password>
+DB_USER=<the read-only DB user you provisioned, e.g. dalux_forms_app>
+DB_PASSWORD=<that user's password>
 DB_NAME=SHEQ
 
-# Dalux API
-DALUX_API_KEY=<dalux-api-key>
+# Dalux API — same X-API-KEY used by n8n
+DALUX_API_KEY=<the existing Dalux API key>
 DALUX_BASE_URL=https://node2.field.dalux.com/service/api
 
 # App config
@@ -53,25 +86,24 @@ APP_NAME=Dalux Report Portal
 DEBUG=false
 
 # Teams notifications
-NOTIFY_POWER_AUTOMATE_URL=<full Power Automate URL — Neil has this; it contains a sig= signature, treat as a secret>
-APP_PUBLIC_URL=http://<the URL colleagues will use, e.g. http://dalux-forms.cspencerltd.co.uk>
-NOTIFY_ENABLED=false
+NOTIFY_POWER_AUTOMATE_URL=<URL Neil sent you via password manager, OR your own flow URL — see §Power Automate alternative>
+APP_PUBLIC_URL=<the URL Spencer staff will reach the app at, e.g. http://dalux-forms.cspencerltd.co.uk>
+NOTIFY_ENABLED=false   # leave false until after Step 4 (bootstrap)
 
-# Template upload feature (see "Step 6" below)
-ADMIN_UPLOAD_TOKEN=<a strong random string, e.g. `openssl rand -hex 32` — share with Neil only>
+# Template upload feature (see Step 6 below for the security model)
+ADMIN_UPLOAD_TOKEN=<the strong random string you generated with `openssl rand -hex 32`>
 
-# Login allowlist (see "Auth" section below) — comma-separated. Seeded as
-# admins on first startup with the password in INITIAL_ADMIN_PASSWORD.
-# After first sign-in users can/should change their own password.
+# Login allowlist — pre-filled. Both users seeded as admin on first startup
+# with INITIAL_ADMIN_PASSWORD; they change it after first sign-in.
 INITIAL_ADMIN_EMAILS=neil.white@thespencergroup.co.uk,claire.ransom@thespencergroup.co.uk
 INITIAL_ADMIN_PASSWORD=Dalux
 ```
 
-**Security notes:**
-- `.env` is gitignored — never commit it
-- `NOTIFY_POWER_AUTOMATE_URL` contains a SAS signature; anyone with this URL can post to the Teams channel. Restrict file permissions: `chmod 600 backend/.env`
-- `APP_PUBLIC_URL` must be the URL colleagues reach the app at — it's embedded in the "Download PDF" buttons in Teams messages
-- `ADMIN_UPLOAD_TOKEN` gates the template-upload endpoint. **Treat this like an admin password.** See Step 6 below for full context — this feature lets Neil ship new form-report templates without you needing to redeploy. Rotate the token if it's ever shared inappropriately
+**Security recap:**
+- `.env` is gitignored — never commit it. The `chmod 600` above keeps it readable only by the file owner.
+- `NOTIFY_POWER_AUTOMATE_URL` contains a SAS signature; anyone with this URL can post to the Teams channel. Treat as a secret.
+- `APP_PUBLIC_URL` must be reachable from Spencer-staff workstations on VPN, since it's the link target of "Download PDF" buttons in Teams messages.
+- `ADMIN_UPLOAD_TOKEN` gates the template-upload endpoint. **Treat as an admin password.** See Step 6 for context. Rotate if leaked.
 
 ---
 
@@ -223,12 +255,20 @@ Three directories under `/opt/dalux-forms/backend/` persist between container re
 
 ---
 
-## What to escalate back to Neil
+## Troubleshooting — common issues
 
-- Container won't start / can't reach MariaDB
-- Backfill returns 0 rows inserted (implies DB connection problem, not an empty set)
-- Teams messages flooding after enable (should not happen if backfill was run — means it was skipped)
-- After a week, no notifications received when forms are closing in Dalux
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `dalux-backend` won't start; logs show "Can't connect to MySQL server" | DB credentials wrong, or the DB user lacks `SELECT` on the SHEQ tables | Verify the user from your secrets store can run `SELECT COUNT(*) FROM SHEQ.DLX_2_forms` from the host; check `.env` has no typos |
+| `dalux-backend` healthcheck fails with no DB error | Missing `INITIAL_ADMIN_*` env vars; the bootstrap on first start can't seed users → app starts but login is broken | Check `docker-compose logs backend` for `[startup] bootstrapped N admin user(s)`; if N=0 on first start, set `INITIAL_ADMIN_EMAILS` and re-run after deleting `backend/data/app.db` |
+| Backfill (Step 4) returns "0 rows inserted" | DB connection problem (the query itself returned no candidate forms because it can't reach MariaDB) — NOT an empty form set | Check DB credentials; manually run `docker-compose exec backend python -c "from app.database import SessionLocal; print(SessionLocal().execute(__import__('sqlalchemy').text('SELECT COUNT(*) FROM DLX_2_forms')).scalar())"` |
+| Teams channel gets flooded right after `NOTIFY_ENABLED=true` | Step 4 (bootstrap) was skipped; the system thinks every closed form is "newly closed" | `docker-compose exec backend python -m app.notifications.backfill` and accept the flood, OR: set `NOTIFY_ENABLED=false`, run the backfill, then re-enable |
+| After a week of forms closing in Dalux, no Teams notifications arrive | Three possible causes: (1) `NOTIFY_ENABLED=false`, (2) `NOTIFY_POWER_AUTOMATE_URL` is wrong/expired, (3) the Power Automate flow itself is failing | Check `docker-compose logs backend \| grep notification` for the scheduled run output; if the run shows `sent: 0`, check Power Automate flow's Run history at https://make.powerautomate.com |
+| Template upload returns `503` | `ADMIN_UPLOAD_TOKEN` env var is unset, which disables the feature | Set the token in `.env` and `docker-compose restart backend` |
+| Template upload returns `401 Invalid or missing X-Admin-Token` | The `X-Admin-Token` header sent doesn't match what's in `.env` | Confirm the value in your password manager matches `.env`; the user (Neil) needs the same string in their browser localStorage via the Admin → Templates tab token field |
+| User can't log in even with correct password | Their account may have been disabled, or the bootstrap didn't seed them | Check `docker-compose exec backend sqlite3 /app/backend/data/app.db "SELECT email,active FROM approved_users"`; reactivate via Admin → Users tab if needed |
+
+If you hit something not on this list, escalate to Neil with the relevant `docker-compose logs backend` excerpt.
 
 ---
 
@@ -253,7 +293,78 @@ When Entra is set up, this whole layer gets swapped for OAuth — the user table
 
 ---
 
+## Power Automate flow (alternative: build your own)
+
+Skip this section if you're using the URL Neil sent you. If you'd rather own the flow under an IT service account — recommended for long-term operability so it doesn't disappear if Neil leaves — build it yourself in 5 minutes:
+
+1. Go to **https://make.powerautomate.com** while signed in as the IT service account
+2. **Create** → **Instant cloud flow** → **"When a HTTP request is received"** → name it e.g. `Dalux Forms — Closed form to Doc Control`
+3. In the trigger: set **Who can trigger the flow?** → **"Anyone"** (the URL itself is the secret, signed with a SAS key)
+4. Click **"Use sample payload to generate schema"** and paste:
+   ```json
+   {
+     "form_code": "CS053",
+     "form_id": "S436856085521893376",
+     "template_name": "Weekly Safety inspection",
+     "template_display_name": "CS053 — Weekly Safety inspection",
+     "site_name": "Kessock Bridge Tower Rescue System",
+     "sos_number": "C2130",
+     "form_number": "PaintInspection_1",
+     "modified_at": "2026-04-19T14:22:00Z",
+     "download_url": "https://forms.spencergroup.internal/api/forms/S436856085521893376/download"
+   }
+   ```
+5. **+ New step** → search **"Post adaptive card in a chat or channel"** → choose **Microsoft Teams** → set Post-as: **Flow bot**, Post-in: **Channel**, then pick the doc-control channel
+6. In the **Adaptive Card** field, paste:
+   ```json
+   {
+     "type": "AdaptiveCard",
+     "version": "1.4",
+     "body": [
+       {
+         "type": "Container",
+         "style": "accent",
+         "items": [
+           { "type": "TextBlock", "text": "@{triggerBody()?['form_code']} closed - ready for QA",
+             "weight": "Bolder", "size": "Large", "wrap": true },
+           { "type": "TextBlock", "text": "@{triggerBody()?['template_display_name']}",
+             "isSubtle": true, "spacing": "None", "wrap": true }
+         ]
+       },
+       {
+         "type": "FactSet",
+         "facts": [
+           { "title": "Site",     "value": "@{triggerBody()?['site_name']}" },
+           { "title": "SOS #",    "value": "@{triggerBody()?['sos_number']}" },
+           { "title": "Form No.", "value": "@{triggerBody()?['form_number']}" },
+           { "title": "Form ID",  "value": "@{triggerBody()?['form_id']}" },
+           { "title": "Modified", "value": "@{triggerBody()?['modified_at']}" }
+         ]
+       },
+       { "type": "TextBlock", "text": "Form is closed in Dalux and ready to download.",
+         "wrap": true, "spacing": "Medium" }
+     ],
+     "actions": [
+       { "type": "Action.OpenUrl", "title": "Download PDF",
+         "url": "@{triggerBody()?['download_url']}", "style": "positive" }
+     ]
+   }
+   ```
+7. **Save**. Go back to the trigger step — the **HTTP POST URL** field now has a long URL ending in `sig=...`. Copy it and put it in `.env` as `NOTIFY_POWER_AUTOMATE_URL`.
+
+To verify before letting the app fire it, run from the host (replacing the URL with yours):
+```bash
+curl -X POST "https://default.../sig=..." \
+  -H "Content-Type: application/json" \
+  -d '{"form_code":"CS053","form_id":"TEST-001","template_name":"Weekly Safety inspection","template_display_name":"CS053 - Smoke Test","site_name":"TEST","sos_number":"C0000","form_number":"TEST-001","modified_at":"2026-01-01T00:00:00Z","download_url":"https://example.com"}'
+```
+
+A 202 means accepted — a test card should appear in the channel within 10 seconds.
+
+---
+
 ## Reference
 
 - Teams notifications design and rationale: [docs/teams_notifications_plan.md](teams_notifications_plan.md)
 - Template upload design and security model: [docs/template_upload_plan.md](template_upload_plan.md)
+- Engineering review brief: [docs/engineering_handoff.md](engineering_handoff.md)
