@@ -7,13 +7,16 @@ import {
   fetchTemplateVersions, fetchTemplateAudit, uploadTemplate,
   disableTemplateVersion, enableTemplateVersion, deleteTemplateVersion,
   type TemplateVersion, type TemplateAuditRow,
+  fetchUsers, addUser, updateUser, deleteUser, adminResetPassword,
+  type ApprovedUserRow, type UserRole,
 } from "../api";
 import {
   Card, Tag, Button, PageHeader, LoadingPanel, ErrorPanel, EmptyState,
 } from "../components/ui";
+import { useAuth } from "../auth/AuthContext";
 
-type Tab = "projects" | "templates";
-const TABS: Tab[] = ["projects", "templates"];
+type Tab = "projects" | "templates" | "users";
+const TABS: Tab[] = ["projects", "templates", "users"];
 
 export default function AdminPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -35,16 +38,19 @@ export default function AdminPage() {
         subtitle={
           tab === "projects"
             ? "Dalux project mapping status. Hide projects you don't need to see in the worklist."
-            : "Upload and version custom report templates without redeploying the app."
+            : tab === "templates"
+            ? "Upload and version custom report templates without redeploying the app."
+            : "Approved users — only people on this list can sign in. Stop-gap before Azure Entra."
         }
       />
 
       <div className="flex items-center gap-2 mb-4 border-b" style={{ borderColor: "var(--color-border)" }}>
         <TabButton active={tab === "projects"} onClick={() => setTab("projects")}>Projects</TabButton>
         <TabButton active={tab === "templates"} onClick={() => setTab("templates")}>Templates</TabButton>
+        <TabButton active={tab === "users"} onClick={() => setTab("users")}>Users</TabButton>
       </div>
 
-      {tab === "projects" ? <ProjectsTab /> : <TemplatesTab />}
+      {tab === "projects" ? <ProjectsTab /> : tab === "templates" ? <TemplatesTab /> : <UsersTab />}
     </div>
   );
 }
@@ -606,5 +612,349 @@ function AuditList({ rows, loading }: { rows: TemplateAuditRow[]; loading: boole
         </table>
       )}
     </Card>
+  );
+}
+
+// ===========================================================================
+// Users tab — approved-user list, add/role/deactivate/reset-password/delete
+// ===========================================================================
+
+function UsersTab() {
+  const queryClient = useQueryClient();
+  const { user: currentUser } = useAuth();
+
+  const usersQ = useQuery({ queryKey: ["admin-users"], queryFn: fetchUsers });
+
+  function bumpUsers() {
+    queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+  }
+
+  const updateMut = useMutation({
+    mutationFn: ({ email, patch }: { email: string; patch: { role?: UserRole; active?: boolean; name?: string } }) => updateUser(email, patch),
+    onSuccess: bumpUsers,
+  });
+  const deleteMut = useMutation({
+    mutationFn: (email: string) => deleteUser(email),
+    onSuccess: bumpUsers,
+  });
+  const addMut = useMutation({
+    mutationFn: addUser,
+    onSuccess: bumpUsers,
+  });
+  const resetMut = useMutation({
+    mutationFn: ({ email, password }: { email: string; password: string }) => adminResetPassword(email, password),
+  });
+
+  const lastError =
+    (addMut.error as Error | null)?.message ??
+    (updateMut.error as Error | null)?.message ??
+    (deleteMut.error as Error | null)?.message ??
+    (resetMut.error as Error | null)?.message ??
+    null;
+  const lastErrorDetail = (() => {
+    const e: any = addMut.error || updateMut.error || deleteMut.error || resetMut.error;
+    return e?.response?.data?.detail ?? lastError;
+  })();
+
+  return (
+    <div className="grid gap-4">
+      <AddUserForm
+        onSubmit={(input) => addMut.mutate({ ...input, added_by: currentUser?.email ?? undefined })}
+        busy={addMut.isPending}
+        result={addMut.data}
+        error={addMut.error as Error | null}
+        onClear={() => addMut.reset()}
+      />
+
+      {lastErrorDetail && (lastError === lastErrorDetail || true) && !addMut.isSuccess && (deleteMut.isError || updateMut.isError || resetMut.isError) && (
+        <ErrorPanel>{typeof lastErrorDetail === "string" ? lastErrorDetail : "Action failed."}</ErrorPanel>
+      )}
+
+      <Card padded={false}>
+        <div className="flex items-baseline justify-between px-4 py-3 border-b" style={{ borderColor: "var(--color-border)" }}>
+          <h2 className="text-[14px] font-semibold">Approved users</h2>
+          <span className="text-[12px]" style={{ color: "var(--color-text-muted)" }}>
+            {usersQ.data?.length ?? 0} total
+          </span>
+        </div>
+
+        {usersQ.isLoading ? (
+          <LoadingPanel>Loading users…</LoadingPanel>
+        ) : usersQ.error ? (
+          <ErrorPanel>Failed to load users: {(usersQ.error as Error).message}</ErrorPanel>
+        ) : (usersQ.data?.length ?? 0) === 0 ? (
+          <EmptyState title="No users yet" hint="Set INITIAL_ADMIN_EMAILS in .env or add one above." />
+        ) : (
+          <table className="w-full text-[13px]">
+            <thead style={{ background: "var(--color-surface-sunken)" }}>
+              <tr className="text-left text-[10.5px] uppercase tracking-wider" style={{ color: "var(--color-text-muted)" }}>
+                <th className="px-3 py-2.5 font-semibold">Email</th>
+                <th className="px-3 py-2.5 font-semibold w-[180px]">Name</th>
+                <th className="px-3 py-2.5 font-semibold w-[110px]">Role</th>
+                <th className="px-3 py-2.5 font-semibold w-[90px]">Status</th>
+                <th className="px-3 py-2.5 font-semibold w-[140px]">Last login</th>
+                <th className="px-3 py-2.5 font-semibold text-right w-[280px]">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {usersQ.data?.map(u => (
+                <UserRow
+                  key={u.email}
+                  user={u}
+                  isSelf={u.email === currentUser?.email}
+                  onRoleChange={(role) => updateMut.mutate({ email: u.email, patch: { role } })}
+                  onActiveToggle={() => updateMut.mutate({ email: u.email, patch: { active: !u.active } })}
+                  onResetPassword={(pw) => resetMut.mutate({ email: u.email, password: pw })}
+                  onDelete={() => {
+                    if (window.confirm(`Permanently remove ${u.email}? They'll lose access immediately.`)) {
+                      deleteMut.mutate(u.email);
+                    }
+                  }}
+                  busy={
+                    (updateMut.isPending && updateMut.variables?.email === u.email) ||
+                    (deleteMut.isPending && deleteMut.variables === u.email) ||
+                    (resetMut.isPending && resetMut.variables?.email === u.email)
+                  }
+                />
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function AddUserForm({
+  onSubmit, busy, result, error, onClear,
+}: {
+  onSubmit: (input: { email: string; name?: string; role: UserRole; initial_password: string }) => void;
+  busy: boolean;
+  result?: ApprovedUserRow;
+  error: Error | null;
+  onClear: () => void;
+}) {
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [role, setRole] = useState<UserRole>("user");
+  const [initialPw, setInitialPw] = useState("");
+
+  useEffect(() => {
+    if (result) {
+      setEmail(""); setName(""); setRole("user"); setInitialPw("");
+    }
+  }, [result]);
+
+  const detail = (error as { response?: { data?: { detail?: string } } } | null)?.response?.data?.detail;
+
+  return (
+    <Card>
+      <div className="flex items-baseline justify-between mb-3">
+        <h2 className="text-[14px] font-semibold">Add user</h2>
+        <span className="text-[11px]" style={{ color: "var(--color-text-faint)" }}>
+          Tell them their initial password — they can change it after first sign-in.
+        </span>
+      </div>
+      <div className="grid grid-cols-12 gap-3">
+        <div className="col-span-4">
+          <Label>Email</Label>
+          <input
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            placeholder="user@thespencergroup.co.uk"
+            className="w-full px-2.5 py-1.5 text-[13px] rounded border outline-none focus:border-[var(--color-brand-500)]"
+            style={{ background: "var(--color-surface-raised)", borderColor: "var(--color-border-strong)", color: "var(--color-text)" }}
+          />
+        </div>
+        <div className="col-span-3">
+          <Label>Display name</Label>
+          <input
+            type="text"
+            value={name}
+            onChange={e => setName(e.target.value)}
+            placeholder="(auto from email)"
+            className="w-full px-2.5 py-1.5 text-[13px] rounded border outline-none focus:border-[var(--color-brand-500)]"
+            style={{ background: "var(--color-surface-raised)", borderColor: "var(--color-border-strong)", color: "var(--color-text)" }}
+          />
+        </div>
+        <div className="col-span-2">
+          <Label>Role</Label>
+          <select
+            value={role}
+            onChange={e => setRole(e.target.value as UserRole)}
+            className="w-full px-2.5 py-1.5 text-[13px] rounded border outline-none focus:border-[var(--color-brand-500)]"
+            style={{ background: "var(--color-surface-raised)", borderColor: "var(--color-border-strong)", color: "var(--color-text)" }}
+          >
+            <option value="user">User</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <div className="col-span-3">
+          <Label>Initial password</Label>
+          <input
+            type="text"
+            value={initialPw}
+            onChange={e => setInitialPw(e.target.value)}
+            placeholder="≥ 4 characters"
+            className="w-full px-2.5 py-1.5 text-[13px] rounded border outline-none focus:border-[var(--color-brand-500)]"
+            style={{ background: "var(--color-surface-raised)", borderColor: "var(--color-border-strong)", color: "var(--color-text)" }}
+          />
+        </div>
+      </div>
+      <div className="flex items-center gap-2 mt-3">
+        <Button
+          variant="primary"
+          disabled={busy || !email || !initialPw || initialPw.length < 4}
+          onClick={() => onSubmit({ email: email.trim(), name: name.trim() || undefined, role, initial_password: initialPw })}
+        >
+          {busy ? "Adding…" : "Add user"}
+        </Button>
+        {(result || error) && <Button size="sm" variant="ghost" onClick={onClear}>Clear</Button>}
+      </div>
+      {result && (
+        <div className="mt-3 p-3 rounded border text-[12.5px]"
+             style={{ background: "var(--color-success-50)", color: "var(--color-success-700)", borderColor: "var(--color-success-200)" }}>
+          ✓ Added <strong>{result.email}</strong> as <strong>{result.role}</strong>.
+        </div>
+      )}
+      {error && (
+        <div className="mt-3"><ErrorPanel>{detail ?? error.message}</ErrorPanel></div>
+      )}
+    </Card>
+  );
+}
+
+function UserRow({
+  user, isSelf, onRoleChange, onActiveToggle, onResetPassword, onDelete, busy,
+}: {
+  user: ApprovedUserRow;
+  isSelf: boolean;
+  onRoleChange: (role: UserRole) => void;
+  onActiveToggle: () => void;
+  onResetPassword: (newPw: string) => void;
+  onDelete: () => void;
+  busy: boolean;
+}) {
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetPw, setResetPw] = useState("");
+
+  return (
+    <tr className="border-t" style={{ borderColor: "var(--color-border)" }}>
+      <td className="px-3 py-2.5 font-mono text-[12px]" style={{ color: "var(--color-text)" }}>{user.email}</td>
+      <td className="px-3 py-2.5" style={{ color: user.name ? "var(--color-text)" : "var(--color-text-faint)" }}>{user.name || "—"}</td>
+      <td className="px-3 py-2.5">
+        <select
+          value={user.role}
+          disabled={busy || isSelf}
+          onChange={e => onRoleChange(e.target.value as UserRole)}
+          title={isSelf ? "You can't change your own role" : "Change role"}
+          className="px-2 py-1 text-[12px] rounded border outline-none focus:border-[var(--color-brand-500)] disabled:opacity-60"
+          style={{ background: "var(--color-surface-raised)", borderColor: "var(--color-border-strong)", color: "var(--color-text)" }}
+        >
+          <option value="user">User</option>
+          <option value="admin">Admin</option>
+        </select>
+      </td>
+      <td className="px-3 py-2.5">
+        {user.active ? <Tag tone="success">Active</Tag> : <Tag tone="warning">Disabled</Tag>}
+      </td>
+      <td className="px-3 py-2.5 tabular text-[12px]" style={{ color: "var(--color-text-muted)" }}>
+        {user.last_login_at ? new Date(user.last_login_at).toLocaleString("en-GB") : "never"}
+      </td>
+      <td className="px-3 py-2.5 text-right">
+        <div className="inline-flex gap-1.5">
+          <Button size="sm" variant="ghost" onClick={() => setShowResetModal(true)} disabled={busy}>
+            Reset pw
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={onActiveToggle}
+            disabled={busy || isSelf}
+            title={isSelf ? "You can't deactivate yourself" : ""}
+          >
+            {user.active ? "Deactivate" : "Activate"}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={onDelete}
+            disabled={busy || isSelf}
+            title={isSelf ? "You can't delete yourself" : ""}
+          >
+            Delete
+          </Button>
+        </div>
+
+        {showResetModal && (
+          <ResetPasswordModal
+            email={user.email}
+            value={resetPw}
+            onChange={setResetPw}
+            onClose={() => { setShowResetModal(false); setResetPw(""); }}
+            onSubmit={() => {
+              if (resetPw.length >= 4) {
+                onResetPassword(resetPw);
+                setShowResetModal(false);
+                setResetPw("");
+              }
+            }}
+          />
+        )}
+      </td>
+    </tr>
+  );
+}
+
+function ResetPasswordModal({
+  email, value, onChange, onClose, onSubmit,
+}: {
+  email: string;
+  value: string;
+  onChange: (v: string) => void;
+  onClose: () => void;
+  onSubmit: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-[100] grid place-items-center"
+      style={{ background: "rgba(15, 27, 45, 0.45)" }}
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-sm p-5 rounded border text-left"
+        style={{ background: "var(--color-surface-raised)", borderColor: "var(--color-border)" }}
+        onClick={e => e.stopPropagation()}
+      >
+        <h2 className="text-[15px] font-semibold mb-1">Reset password</h2>
+        <p className="text-[12px] mb-4" style={{ color: "var(--color-text-muted)" }}>{email}</p>
+
+        <Label>New password</Label>
+        <input
+          type="text"
+          autoFocus
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder="≥ 4 characters"
+          className="w-full px-2.5 py-1.5 text-[13px] rounded border outline-none focus:border-[var(--color-brand-500)]"
+          style={{ background: "var(--color-surface-raised)", borderColor: "var(--color-border-strong)", color: "var(--color-text)" }}
+        />
+        <p className="text-[11px] mt-2" style={{ color: "var(--color-text-faint)" }}>
+          Tell the user their new password securely. They can change it from the user menu after signing in.
+        </p>
+
+        <div className="flex justify-end gap-2 mt-4">
+          <button type="button" onClick={onClose} className="px-3 py-2 rounded text-[12.5px]" style={{ color: "var(--color-text-muted)" }}>Cancel</button>
+          <button
+            type="button"
+            disabled={value.length < 4}
+            onClick={onSubmit}
+            className="px-3 py-2 rounded text-[12.5px] font-semibold disabled:opacity-60"
+            style={{ background: "var(--color-brand-600)", color: "#fff" }}
+          >Reset password</button>
+        </div>
+      </div>
+    </div>
   );
 }

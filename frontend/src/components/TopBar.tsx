@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { fetchSearch, fetchSyncStatus, type SearchResponse } from "../api";
+import { fetchSearch, fetchSyncStatus, changePassword, type SearchResponse } from "../api";
+import { useAuth } from "../auth/AuthContext";
 
 export default function TopBar() {
   const [mode, setMode] = useState<"light" | "dark">(() => {
@@ -43,17 +44,194 @@ export default function TopBar() {
         )}
       </button>
 
+      <UserMenu />
+    </header>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// UserMenu — current user pill with logout + change-password
+// ---------------------------------------------------------------------------
+
+function UserMenu() {
+  const { user, signOut } = useAuth();
+  const [open, setOpen] = useState(false);
+  const [showPwModal, setShowPwModal] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onDocDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDocDown);
+    return () => document.removeEventListener("mousedown", onDocDown);
+  }, []);
+
+  if (!user) return null;
+  const initials = (user.name || user.email).split(/\s+|[._]/).filter(Boolean).slice(0, 2).map(s => s[0]?.toUpperCase()).join("");
+
+  return (
+    <div ref={ref} className="relative">
       <button
-        className="h-8 w-8 grid place-items-center rounded hover:bg-[var(--color-surface-sunken)]"
-        title="Help"
-        style={{ color: "var(--color-text-muted)" }}
+        onClick={() => setOpen(o => !o)}
+        className="h-8 inline-flex items-center gap-2 px-2 rounded hover:bg-[var(--color-surface-sunken)] transition-colors"
+        title={user.email}
       >
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className="h-4 w-4">
-          <circle cx="10" cy="10" r="7" />
-          <path d="M8 8a2 2 0 1 1 3.2 1.6c-.7.5-1.2 1-1.2 1.9M10 14h.01" />
+        <span
+          className="h-7 w-7 rounded-full text-[11px] font-semibold grid place-items-center"
+          style={{ background: "var(--color-brand-600)", color: "#fff" }}
+        >
+          {initials || "?"}
+        </span>
+        <span className="text-[12.5px] font-medium hidden md:inline" style={{ color: "var(--color-text)" }}>
+          {user.name || user.email.split("@")[0]}
+        </span>
+        <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.8" style={{ color: "var(--color-text-muted)" }}>
+          <path d="m4 6 4 4 4-4" />
         </svg>
       </button>
-    </header>
+
+      {open && (
+        <div
+          className="absolute right-0 mt-1 min-w-[220px] rounded border shadow-lg z-50 overflow-hidden"
+          style={{ background: "var(--color-surface-raised)", borderColor: "var(--color-border)" }}
+        >
+          <div className="px-3 py-2.5 border-b" style={{ borderColor: "var(--color-border)" }}>
+            <div className="text-[12.5px] font-semibold truncate">{user.name || "(no display name)"}</div>
+            <div className="text-[11px] truncate" style={{ color: "var(--color-text-muted)" }}>{user.email}</div>
+            <div className="text-[10.5px] mt-0.5 inline-block px-1.5 py-0.5 rounded font-semibold" style={{ background: "var(--color-brand-50)", color: "var(--color-brand-700)" }}>
+              {user.role}
+            </div>
+          </div>
+          <MenuItem onClick={() => { setOpen(false); setShowPwModal(true); }}>Change password</MenuItem>
+          <MenuItem onClick={() => { setOpen(false); signOut(); }} tone="danger">Sign out</MenuItem>
+        </div>
+      )}
+
+      {showPwModal && <ChangePasswordModal onClose={() => setShowPwModal(false)} />}
+    </div>
+  );
+}
+
+function MenuItem({ children, onClick, tone }: { children: React.ReactNode; onClick: () => void; tone?: "danger" }) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-full text-left px-3 py-2 text-[12.5px] hover:bg-[var(--color-surface-sunken)]"
+      style={{ color: tone === "danger" ? "var(--color-danger-700)" : "var(--color-text)" }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function ChangePasswordModal({ onClose }: { onClose: () => void }) {
+  const { user } = useAuth();
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+
+  if (!user) return null;
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setErr(null);
+    if (next !== confirm) {
+      setErr("New passwords don't match.");
+      return;
+    }
+    if (next.length < 4) {
+      setErr("New password must be at least 4 characters.");
+      return;
+    }
+    setBusy(true);
+    try {
+      await changePassword(user!.email, current, next);
+      setDone(true);
+    } catch (e) {
+      const detail = (e as { response?: { data?: { detail?: string } } } | null)?.response?.data?.detail;
+      setErr(typeof detail === "string" ? detail : "Could not change password.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] grid place-items-center"
+      style={{ background: "rgba(15, 27, 45, 0.45)" }}
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-sm p-5 rounded border"
+        style={{ background: "var(--color-surface-raised)", borderColor: "var(--color-border)" }}
+        onClick={e => e.stopPropagation()}
+      >
+        <h2 className="text-[15px] font-semibold mb-1">Change password</h2>
+        <p className="text-[12px] mb-4" style={{ color: "var(--color-text-muted)" }}>{user.email}</p>
+
+        {done ? (
+          <>
+            <div
+              className="px-3 py-2 rounded text-[12.5px] mb-4 border"
+              style={{ background: "var(--color-success-50)", color: "var(--color-success-700)", borderColor: "var(--color-success-200)" }}
+            >
+              ✓ Password changed.
+            </div>
+            <button
+              onClick={onClose}
+              className="w-full px-3 py-2 rounded text-[13px] font-semibold"
+              style={{ background: "var(--color-brand-600)", color: "#fff" }}
+            >Close</button>
+          </>
+        ) : (
+          <form onSubmit={submit} className="space-y-3">
+            <PwField label="Current password" value={current} onChange={setCurrent} autoFocus />
+            <PwField label="New password" value={next} onChange={setNext} />
+            <PwField label="Confirm new password" value={confirm} onChange={setConfirm} />
+            {err && (
+              <div
+                className="px-3 py-2 rounded text-[12px] border"
+                style={{ background: "var(--color-danger-50)", color: "var(--color-danger-700)", borderColor: "var(--color-danger-200)" }}
+              >{err}</div>
+            )}
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-3 py-2 rounded text-[12.5px]"
+                style={{ background: "transparent", color: "var(--color-text-muted)" }}
+              >Cancel</button>
+              <button
+                type="submit"
+                disabled={busy || !current || !next || !confirm}
+                className="px-3 py-2 rounded text-[12.5px] font-semibold disabled:opacity-60"
+                style={{ background: "var(--color-brand-600)", color: "#fff" }}
+              >{busy ? "Saving…" : "Change password"}</button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PwField({ label, value, onChange, autoFocus }: { label: string; value: string; onChange: (v: string) => void; autoFocus?: boolean }) {
+  return (
+    <label className="block">
+      <div className="text-[10.5px] uppercase tracking-wider font-semibold mb-1" style={{ color: "var(--color-text-faint)" }}>{label}</div>
+      <input
+        type="password"
+        autoFocus={autoFocus}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="w-full px-2.5 py-1.5 text-[13px] rounded border outline-none focus:border-[var(--color-brand-500)]"
+        style={{ background: "var(--color-surface-raised)", borderColor: "var(--color-border-strong)", color: "var(--color-text)" }}
+      />
+    </label>
   );
 }
 

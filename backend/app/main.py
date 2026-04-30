@@ -19,6 +19,7 @@ from app.notifications import scheduler as notifications_scheduler
 from app.templates_userland import loader as template_loader
 from app.templates_userland.admin import router as templates_admin_router
 from app.dashboard import router as dashboard_router
+from app.auth import router as auth_router, bootstrap_admin_emails
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -26,11 +27,26 @@ app = FastAPI(
 )
 app.include_router(templates_admin_router)
 app.include_router(dashboard_router)
+app.include_router(auth_router)
 
 
 @app.on_event("startup")
 def startup_init_app_db():
     AppBase.metadata.create_all(bind=app_engine)
+
+
+@app.on_event("startup")
+def startup_bootstrap_users():
+    """Seed approved_users from INITIAL_ADMIN_EMAILS if the table is empty.
+    Idempotent — does nothing once the table has any rows."""
+    from app.database import AppSessionLocal
+    adb = AppSessionLocal()
+    try:
+        n = bootstrap_admin_emails(adb)
+        if n > 0:
+            print(f"[startup] bootstrapped {n} admin user(s) from INITIAL_ADMIN_EMAILS")
+    finally:
+        adb.close()
 
 
 @app.on_event("startup")

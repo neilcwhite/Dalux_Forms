@@ -1,5 +1,6 @@
 import { NavLink, useLocation } from "react-router-dom";
 import logo from "../assets/spencer-logo.png";
+import { useAuth } from "../auth/AuthContext";
 
 const primaryNav = [
   { to: "/dashboard", label: "Dashboard", icon: IconDashboard },
@@ -43,17 +44,30 @@ export default function Sidebar() {
         {adminNav.map(item => <NavItem key={item.to} {...item} />)}
       </nav>
 
-      {/* User pill */}
-      <div className="px-3 py-3 border-t border-white/5 flex items-center gap-2.5">
-        <div className="h-7 w-7 rounded-full bg-[var(--color-brand-500)] text-white text-[11px] font-semibold flex items-center justify-center">
-          AD
+      <UserPill />
+    </aside>
+  );
+}
+
+function UserPill() {
+  const { user } = useAuth();
+  const initials = (user?.name || user?.email || "?")
+    .split(/\s+|[._]/).filter(Boolean).slice(0, 2)
+    .map(s => s[0]?.toUpperCase()).join("") || "?";
+  return (
+    <div className="px-3 py-3 border-t border-white/5 flex items-center gap-2.5">
+      <div className="h-7 w-7 rounded-full bg-[var(--color-brand-500)] text-white text-[11px] font-semibold flex items-center justify-center">
+        {initials}
+      </div>
+      <div className="flex-1 min-w-0 leading-tight">
+        <div className="text-white text-[12px] font-medium truncate">
+          {user?.name || user?.email?.split("@")[0] || "Signed out"}
         </div>
-        <div className="flex-1 min-w-0 leading-tight">
-          <div className="text-white text-[12px] font-medium truncate">Admin</div>
-          <div className="text-[10.5px] text-white/50 truncate">self-hosted v0.4.2</div>
+        <div className="text-[10.5px] text-white/50 truncate">
+          {user ? user.role : "—"}
         </div>
       </div>
-    </aside>
+    </div>
   );
 }
 

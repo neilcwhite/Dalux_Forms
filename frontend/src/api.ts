@@ -385,3 +385,76 @@ export async function fetchSyncStatus(): Promise<SyncStatus> {
   const { data } = await api.get<SyncStatus>("/api/sync-status");
   return data;
 }
+
+// --- Auth + user management ------------------------------------------------
+
+export type UserRole = "admin" | "user";
+
+export interface AuthUser {
+  email: string;
+  name: string | null;
+  role: UserRole;
+}
+
+export interface ApprovedUserRow extends AuthUser {
+  active: boolean;
+  added_at: string | null;
+  added_by: string | null;
+  last_login_at: string | null;
+}
+
+export async function login(email: string, password: string): Promise<AuthUser> {
+  const { data } = await api.post<{ user: AuthUser }>("/api/auth/login", { email, password });
+  return data.user;
+}
+
+export async function fetchMe(email: string): Promise<AuthUser> {
+  const { data } = await api.get<AuthUser>("/api/auth/me", { params: { email } });
+  return data;
+}
+
+export async function changePassword(email: string, currentPassword: string, newPassword: string): Promise<void> {
+  await api.post("/api/auth/change-password", {
+    email,
+    current_password: currentPassword,
+    new_password: newPassword,
+  });
+}
+
+export async function fetchUsers(): Promise<ApprovedUserRow[]> {
+  const { data } = await api.get<ApprovedUserRow[]>("/api/admin/users");
+  return data;
+}
+
+export async function addUser(input: {
+  email: string;
+  name?: string;
+  role: UserRole;
+  initial_password: string;
+  added_by?: string;
+}): Promise<ApprovedUserRow> {
+  const { data } = await api.post<ApprovedUserRow>("/api/admin/users", input);
+  return data;
+}
+
+export async function updateUser(
+  email: string,
+  patch: { name?: string; role?: UserRole; active?: boolean },
+): Promise<ApprovedUserRow> {
+  const { data } = await api.patch<ApprovedUserRow>(
+    `/api/admin/users/${encodeURIComponent(email)}`,
+    patch,
+  );
+  return data;
+}
+
+export async function adminResetPassword(email: string, newPassword: string): Promise<void> {
+  await api.post(
+    `/api/admin/users/${encodeURIComponent(email)}/reset-password`,
+    { new_password: newPassword },
+  );
+}
+
+export async function deleteUser(email: string): Promise<void> {
+  await api.delete(`/api/admin/users/${encodeURIComponent(email)}`);
+}

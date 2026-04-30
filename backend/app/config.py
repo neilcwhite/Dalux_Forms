@@ -24,6 +24,15 @@ class Settings:
     # Empty/unset = feature disabled (endpoint returns 503).
     ADMIN_UPLOAD_TOKEN = os.getenv("ADMIN_UPLOAD_TOKEN", "")
 
+    # Bootstrap admin emails — comma-separated. All seeded as 'admin' on
+    # first startup if approved_users table is empty. Each gets the password
+    # set in INITIAL_ADMIN_PASSWORD; they can change it after first login.
+    INITIAL_ADMIN_EMAILS = os.getenv(
+        "INITIAL_ADMIN_EMAILS",
+        "neil.white@thespencergroup.co.uk,claire.ransom@thespencergroup.co.uk",
+    )
+    INITIAL_ADMIN_PASSWORD = os.getenv("INITIAL_ADMIN_PASSWORD", "Dalux")
+
     @property
     def DB_URL(self):
         return f"mysql+pymysql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"

@@ -59,6 +59,12 @@ NOTIFY_ENABLED=false
 
 # Template upload feature (see "Step 6" below)
 ADMIN_UPLOAD_TOKEN=<a strong random string, e.g. `openssl rand -hex 32` — share with Neil only>
+
+# Login allowlist (see "Auth" section below) — comma-separated. Seeded as
+# admins on first startup with the password in INITIAL_ADMIN_PASSWORD.
+# After first sign-in users can/should change their own password.
+INITIAL_ADMIN_EMAILS=neil.white@thespencergroup.co.uk,claire.ransom@thespencergroup.co.uk
+INITIAL_ADMIN_PASSWORD=Dalux
 ```
 
 **Security notes:**
@@ -223,6 +229,27 @@ Three directories under `/opt/dalux-forms/backend/` persist between container re
 - Backfill returns 0 rows inserted (implies DB connection problem, not an empty set)
 - Teams messages flooding after enable (should not happen if backfill was run — means it was skipped)
 - After a week, no notifications received when forms are closing in Dalux
+
+---
+
+## Auth (stop-gap before Azure Entra)
+
+The app has a thin email + password login screen, intended as a placeholder until SSO is set up.
+
+**What it is:**
+- Each user has their own bcrypt-hashed password stored in SQLite (`approved_users` table inside `backend/data/app.db`).
+- Two roles: `admin` (can manage other users) and `user` (read-only on the user list, full access to everything else).
+- On first deployment, the app seeds the users listed in `INITIAL_ADMIN_EMAILS` as admins, all with the password set in `INITIAL_ADMIN_PASSWORD`. Each user changes their own password after first sign-in.
+- After bootstrap, admins manage the user list from the Admin page → Users tab in the web UI. Initial password for new users is set by the admin and communicated to the user.
+
+**What it isn't:**
+- Real SSO. There is no MFA, no password complexity enforcement, no account lockout, no session-token signing. Backend endpoints are *not* gated — the actual security comes from VPN-only network access. This layer is named-user accountability + nice UX.
+
+**To rotate / replace the bootstrap password:** change `INITIAL_ADMIN_PASSWORD` in `.env` and restart, then ask each bootstrap user to change their own password via the user menu in the top right.
+
+**To remove a user's access:** Admin → Users tab → toggle to Disabled (preserves history) or Delete (permanent).
+
+When Entra is set up, this whole layer gets swapped for OAuth — the user table becomes mostly redundant and the rest of the app stays put.
 
 ---
 

@@ -78,3 +78,28 @@ class TemplateUploadAudit(AppBase):
                      comment="'registered' | 'rejected' | 'disabled' | 'enabled' | 'deleted'")
     error_message = Column(String(500), nullable=True)
     uploader_ip = Column(String(64), nullable=True)
+
+
+class ApprovedUser(AppBase):
+    """Stop-gap auth before Azure Entra. Per-user bcrypt-hashed passwords
+    + role flag. Stored in SQLite alongside the rest of the app's local
+    state. Real security still comes from the VPN — this layer is just
+    "you must know an approved email + its password to use the app".
+
+    On Entra rollout: keep this table for legacy logins during transition,
+    then deprecate. Email field aligns with the eventual SSO subject."""
+    __tablename__ = "approved_users"
+
+    email = Column(String(255), primary_key=True)
+    name = Column(String(120), nullable=True,
+                  comment="Display name; falls back to email local-part if null")
+    password_hash = Column(String(255), nullable=False,
+                           comment="bcrypt hash incl. salt — passlib stores both in one string")
+    role = Column(String(16), nullable=False, default="user",
+                  comment="'admin' (can manage other users) | 'user' (read-only on user list)")
+    added_at = Column(DateTime, server_default=func.now(), nullable=False)
+    added_by = Column(String(255), nullable=True,
+                      comment="Email of the admin who added this user; null for bootstrap entries")
+    active = Column(Integer, nullable=False, default=1,
+                    comment="0 = soft-deleted; user can't log in until reactivated")
+    last_login_at = Column(DateTime, nullable=True)

@@ -28,6 +28,10 @@ services:
       # Template upload feature — set this to enable POST /api/admin/templates/upload.
       # Leave unset to disable the upload endpoint (returns 503).
       ADMIN_UPLOAD_TOKEN: ${ADMIN_UPLOAD_TOKEN:-}
+      # Login allowlist — comma-separated emails seeded as 'admin' on first
+      # startup if approved_users is empty. Each gets INITIAL_ADMIN_PASSWORD.
+      INITIAL_ADMIN_EMAILS: ${INITIAL_ADMIN_EMAILS:-}
+      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-Dalux}
     volumes:
       - ./backend/data:/app/backend/data
       - ./backend/photo_cache:/app/backend/photo_cache
