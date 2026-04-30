@@ -1,25 +1,23 @@
-import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { PageHeader, Tag, Button, LoadingPanel, ErrorPanel } from "../components/ui";
-import { Kpi, SectionCard, RangePill } from "../components/dashboard/kpi";
+import { Kpi, SectionCard } from "../components/dashboard/kpi";
 import { Sparkline } from "../components/dashboard/charts";
 import {
   fetchDashboardGroup, fetchActivity,
-  type DashboardRange, type ActivityEvent,
+  type ActivityEvent,
 } from "../api";
 
 /* ============================================================
    Operational dashboard — what needs my attention right now?
    Analytics (sector engagement, trend, reporting health) lives on
-   /metrics so this stays focused.
+   /metrics so this stays focused. Range is fixed at 90 days here;
+   the time-range pill lives on /metrics where it's actually useful.
    ============================================================ */
-
-const KNOWN_RANGES: DashboardRange[] = ["7d", "30d", "90d", "1y", "all"];
 
 export default function DashboardPage() {
   const navigate = useNavigate();
-  const [range, setRange] = useState<DashboardRange>("90d");
+  const range = "90d" as const;
 
   const groupQ = useQuery({
     queryKey: ["dashboard-group", range],
@@ -54,42 +52,16 @@ export default function DashboardPage() {
     <div className="p-6 max-w-[1400px] mx-auto">
       <PageHeader
         title="Dashboard"
-        subtitle={`${activeSites} active sites · ${totalForms.toLocaleString()} forms in ${range} · ${totalPending.toLocaleString()} awaiting download`}
+        subtitle={`${activeSites} active sites · ${totalForms.toLocaleString()} forms in last 90 days · ${totalPending.toLocaleString()} awaiting download`}
         actions={
-          <>
-            <RangePill ranges={KNOWN_RANGES as unknown as string[]} active={range} onChange={r => setRange(r as DashboardRange)} />
-            <Button size="sm" variant="primary" onClick={() => navigate("/metrics")}>View metrics →</Button>
-          </>
+          <Button size="sm" variant="primary" onClick={() => navigate("/metrics")}>View metrics →</Button>
         }
       />
-
-      {dormantSites > 0 && (
-        <div
-          className="flex items-center gap-3 px-4 py-3 rounded mb-3 border"
-          style={{
-            background: "var(--color-warning-50)",
-            borderColor: "var(--color-warning-500)",
-            borderLeftWidth: 3,
-          }}
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-warning-700)" strokeWidth="2">
-            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
-            <line x1="12" x2="12" y1="9" y2="13" />
-            <line x1="12" x2="12.01" y1="17" y2="17" />
-          </svg>
-          <div className="text-[12.5px] flex-1">
-            <strong style={{ color: "var(--color-warning-700)" }}>
-              {dormantSites} site{dormantSites === 1 ? " has" : "s have"} had no form activity in this period
-            </strong>{" "}
-            — <a href="/sites" className="underline" style={{ color: "var(--color-brand-600)" }}>Review →</a>
-          </div>
-        </div>
-      )}
 
       {/* KPIs — at-a-glance status */}
       <div className="grid grid-cols-4 gap-3 mb-4">
         <Kpi
-          label={`Active sites · ${range}`}
+          label="Active sites"
           value={activeSites}
           unit={`/ ${totalSites}`}
           delta={dormantSites > 0 ? `${dormantSites} dormant` : "all engaged"}
