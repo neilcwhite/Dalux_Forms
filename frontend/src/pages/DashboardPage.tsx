@@ -1,16 +1,18 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { PageHeader, Tag, LoadingPanel, ErrorPanel } from "../components/ui";
-import { Kpi, VelocityGrid, SectionCard, RangePill } from "../components/dashboard/kpi";
-import { Sparkline, TrendChart, Donut, StackedBar, sectorColor } from "../components/dashboard/charts";
+import { PageHeader, Tag, Button, LoadingPanel, ErrorPanel } from "../components/ui";
+import { Kpi, SectionCard, RangePill } from "../components/dashboard/kpi";
+import { Sparkline } from "../components/dashboard/charts";
 import {
   fetchDashboardGroup, fetchActivity,
   type DashboardRange, type ActivityEvent,
 } from "../api";
 
 /* ============================================================
-   Group dashboard — wired to /api/dashboard/group + /api/activity
+   Operational dashboard — what needs my attention right now?
+   Analytics (sector engagement, trend, reporting health) lives on
+   /metrics so this stays focused.
    ============================================================ */
 
 const KNOWN_RANGES: DashboardRange[] = ["7d", "30d", "90d", "1y", "all"];
@@ -41,7 +43,6 @@ export default function DashboardPage() {
   const totalForms = sectors.reduce((a, s) => a + s.total, 0);
   const totalPending = sectors.reduce((a, s) => a + s.pending, 0);
   const totalStale = sectors.reduce((a, s) => a + s.stale, 0);
-  const totalDownloaded = sectors.reduce((a, s) => a + s.downloaded, 0);
 
   // Aggregate weekly trend by summing each week index across sectors
   const aggTrend = aggregateWeeklyTrend(sectors.map(s => s.trend));
@@ -52,14 +53,12 @@ export default function DashboardPage() {
   return (
     <div className="p-6 max-w-[1400px] mx-auto">
       <PageHeader
-        title="Group Dashboard"
-        subtitle={`${activeSites} active sites across ${sectors.length} sector${sectors.length === 1 ? "" : "s"} · ${totalForms.toLocaleString()} forms in ${range}`}
+        title="Dashboard"
+        subtitle={`${activeSites} active sites · ${totalForms.toLocaleString()} forms in ${range} · ${totalPending.toLocaleString()} awaiting download`}
         actions={
           <>
             <RangePill ranges={KNOWN_RANGES as unknown as string[]} active={range} onChange={r => setRange(r as DashboardRange)} />
-            <a href="/dashboard/sectors" className="px-3 py-1.5 text-[13px] font-medium rounded border" style={{ background: "var(--color-brand-600)", color: "#fff", borderColor: "var(--color-brand-600)" }}>
-              Compare sectors →
-            </a>
+            <Button size="sm" variant="primary" onClick={() => navigate("/metrics")}>View metrics →</Button>
           </>
         }
       />
@@ -87,7 +86,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* KPIs */}
+      {/* KPIs — at-a-glance status */}
       <div className="grid grid-cols-4 gap-3 mb-4">
         <Kpi
           label={`Active sites · ${range}`}
@@ -119,144 +118,7 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Sector engagement + Reporting health */}
-      <div className="grid gap-3 mb-3" style={{ gridTemplateColumns: "1.6fr 1fr" }}>
-        <SectionCard
-          title="Sector engagement"
-          subtitle={`Form volume and reporting status by sector — last ${range}`}
-          action={
-            <a href="/dashboard/sectors" className="text-[12px] hover:underline" style={{ color: "var(--color-brand-600)" }}>
-              Compare sectors →
-            </a>
-          }
-          footer={
-            <div className="flex gap-4 text-[11.5px]" style={{ color: "var(--color-text-muted)" }}>
-              <Legend color="var(--color-success-500)" label="Downloaded" />
-              <Legend color="var(--color-warning-500)" label="Pending" />
-              <Legend color="var(--color-danger-500)" label="Stale (mod after dl)" />
-              <span className="ml-auto">{totalForms.toLocaleString()} forms total</span>
-            </div>
-          }
-        >
-          <div className="p-2">
-            {sectors.length === 0 && <div className="p-6 text-center text-[12.5px]" style={{ color: "var(--color-text-faint)" }}>No sector data in range.</div>}
-            {sectors.map((s, i) => (
-              <div key={s.name}>
-                <button
-                  onClick={() => navigate("/dashboard/sectors")}
-                  className="w-full text-left grid items-center gap-3.5 px-2.5 py-2.5 rounded hover:bg-[var(--color-surface-sunken)]"
-                  style={{ gridTemplateColumns: "150px 1fr 80px 60px" }}
-                >
-                  <div>
-                    <div className="text-[13px] font-medium" style={{ color: sectorColor(s.name) }}>{s.name}</div>
-                    <div className="text-[11.5px]" style={{ color: "var(--color-text-muted)" }}>
-                      {s.active}/{s.sites} active · {s.total > 0 && s.active > 0 ? `${(s.total / s.active).toFixed(1)} forms/site` : "—"}
-                    </div>
-                  </div>
-                  <div>
-                    {s.total > 0 ? (
-                      <>
-                        <StackedBar segments={[
-                          { value: s.downloaded, color: "var(--color-success-500)" },
-                          { value: s.pending,    color: "var(--color-warning-500)" },
-                          { value: s.stale,      color: "var(--color-danger-500)" },
-                        ]} />
-                        <div className="flex justify-between text-[10.5px] mt-1 tabular" style={{ color: "var(--color-text-faint)", fontFamily: "var(--font-mono)" }}>
-                          <span>{s.downloaded} downloaded</span>
-                          <span>{s.pending} pending</span>
-                          <span>{s.stale} stale</span>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="h-[22px] rounded" style={{ background: "var(--color-surface-sunken)" }} />
-                    )}
-                  </div>
-                  <div className="text-[13px] font-semibold text-right tabular" style={{ fontFamily: "var(--font-mono)" }}>{s.total}</div>
-                  <div className="flex justify-end">
-                    {s.stale > 0 ? <Tag tone="danger">{s.stale}</Tag> : s.pending > 30 ? <Tag tone="warning">{s.pending}</Tag> : s.total > 0 ? <Tag tone="success">✓</Tag> : <Tag tone="neutral">idle</Tag>}
-                  </div>
-                </button>
-                {i < sectors.length - 1 && <div className="h-px mx-2" style={{ background: "var(--color-border)" }} />}
-              </div>
-            ))}
-          </div>
-        </SectionCard>
-
-        <SectionCard title="Reporting health" subtitle="Across the whole group, in selected range">
-          <div className="p-3.5">
-            <VelocityGrid items={[
-              {
-                label: "Coverage",
-                value: totalForms > 0 ? `${Math.round((totalDownloaded / totalForms) * 100)}%` : "—",
-                sub: "ever downloaded",
-              },
-              { label: "Pending",          value: totalPending.toLocaleString(),    sub: "awaiting download" },
-              { label: "Stale",            value: totalStale.toLocaleString(),      sub: "modified after dl" },
-              { label: "Active sites",     value: activeSites,                      sub: `of ${totalSites}` },
-            ]} />
-            <div className="flex items-center gap-4 mt-4">
-              <Donut downloaded={totalDownloaded} pending={totalPending} stale={totalStale} />
-              <div className="flex-1 text-[12px] leading-relaxed" style={{ color: "var(--color-text-muted)" }}>
-                <div className="text-[13px] font-medium mb-1.5" style={{ color: "var(--color-text)" }}>Group health</div>
-                <div>
-                  <span className="font-semibold" style={{ color: "var(--color-success-700)" }}>{totalDownloaded.toLocaleString()}</span> downloaded ·{" "}
-                  <span className="font-semibold" style={{ color: "var(--color-warning-700)" }}>{totalPending.toLocaleString()}</span> pending ·{" "}
-                  <span className="font-semibold" style={{ color: "var(--color-danger-700)" }}>{totalStale.toLocaleString()}</span> stale
-                </div>
-                <div className="text-[11.5px] mt-1" style={{ color: "var(--color-text-faint)" }}>
-                  {dormantSites} dormant · {totalSites - dormantSites} active in range
-                </div>
-              </div>
-            </div>
-          </div>
-        </SectionCard>
-      </div>
-
-      {/* Trend + Activity */}
-      <div className="grid gap-3 mb-3" style={{ gridTemplateColumns: "1.6fr 1fr" }}>
-        <SectionCard
-          title="Forms raised — last 12 weeks"
-          subtitle="By sector · spot rising / falling engagement"
-        >
-          <div className="px-3 pt-2 pb-4">
-            {sectors.length > 0 ? (
-              <>
-                <TrendChart series={sectors.map(s => ({ name: s.name, color: sectorColor(s.name), values: s.trend }))} />
-                <div className="flex flex-wrap gap-x-4 gap-y-1 px-2 text-[11.5px] mt-1" style={{ color: "var(--color-text-muted)" }}>
-                  {sectors.map(s => <Legend key={s.name} color={sectorColor(s.name)} label={s.name} />)}
-                </div>
-              </>
-            ) : (
-              <div className="p-8 text-center text-[12.5px]" style={{ color: "var(--color-text-faint)" }}>No data yet.</div>
-            )}
-          </div>
-        </SectionCard>
-
-        <SectionCard
-          title="Recent activity"
-          subtitle="Last 24 hours"
-          action={<a href="/forms" className="text-[12px]" style={{ color: "var(--color-brand-600)" }}>View all →</a>}
-        >
-          <div className="max-h-[360px] overflow-auto">
-            {activityQ.isLoading && <div className="p-6 text-[12.5px]" style={{ color: "var(--color-text-muted)" }}>Loading…</div>}
-            {activityQ.error && <div className="p-6 text-[12.5px]" style={{ color: "var(--color-danger-700)" }}>Couldn't load activity</div>}
-            {activityQ.data && activityQ.data.events.length === 0 && (
-              <div className="p-6 text-center text-[12.5px]" style={{ color: "var(--color-text-faint)" }}>
-                Nothing happened in the last 24 hours.
-              </div>
-            )}
-            {activityQ.data?.events.map((e, i) => (
-              <div key={i} className="flex gap-2.5 px-3.5 py-2.5 items-start border-b last:border-0" style={{ borderColor: "var(--color-border)" }}>
-                <FeedIcon event={e} />
-                <div className="flex-1 text-[12.5px] leading-snug">{e.text}</div>
-                <div className="text-[11px] tabular shrink-0" style={{ color: "var(--color-text-faint)" }}>{relativeTime(e.at)}</div>
-              </div>
-            ))}
-          </div>
-        </SectionCard>
-      </div>
-
-      {/* Attention list + per-sector recent */}
+      {/* Operational pair: Sites needing attention + Recent activity */}
       <div className="grid gap-3" style={{ gridTemplateColumns: "2fr 1fr" }}>
         <SectionCard
           title="Sites needing attention"
@@ -301,19 +163,26 @@ export default function DashboardPage() {
           ))}
         </SectionCard>
 
-        <SectionCard title="Forms raised by sector" subtitle="Last 7 weeks · most recent first">
-          <div className="p-3.5">
-            {sectors.map(s => {
-              const recent7 = s.trend.slice(-7);
-              const last = recent7[recent7.length - 1] ?? 0;
-              return (
-                <div key={s.name} className="grid items-center gap-2.5 mb-1" style={{ gridTemplateColumns: "120px 1fr 50px" }}>
-                  <span className="text-[12px] font-medium truncate" title={s.name} style={{ color: sectorColor(s.name) }}>{s.name}</span>
-                  <Sparkline values={recent7.length >= 2 ? recent7 : [0, 0]} color={sectorColor(s.name)} width={200} height={28} />
-                  <span className="text-[12px] tabular text-right" style={{ fontFamily: "var(--font-mono)" }}>{last}</span>
-                </div>
-              );
-            })}
+        <SectionCard
+          title="Recent activity"
+          subtitle="Last 24 hours"
+          action={<a href="/forms" className="text-[12px]" style={{ color: "var(--color-brand-600)" }}>View all →</a>}
+        >
+          <div className="max-h-[480px] overflow-auto">
+            {activityQ.isLoading && <div className="p-6 text-[12.5px]" style={{ color: "var(--color-text-muted)" }}>Loading…</div>}
+            {activityQ.error && <div className="p-6 text-[12.5px]" style={{ color: "var(--color-danger-700)" }}>Couldn't load activity</div>}
+            {activityQ.data && activityQ.data.events.length === 0 && (
+              <div className="p-6 text-center text-[12.5px]" style={{ color: "var(--color-text-faint)" }}>
+                Nothing happened in the last 24 hours.
+              </div>
+            )}
+            {activityQ.data?.events.map((e, i) => (
+              <div key={i} className="flex gap-2.5 px-3.5 py-2.5 items-start border-b last:border-0" style={{ borderColor: "var(--color-border)" }}>
+                <FeedIcon event={e} />
+                <div className="flex-1 text-[12.5px] leading-snug">{e.text}</div>
+                <div className="text-[11px] tabular shrink-0" style={{ color: "var(--color-text-faint)" }}>{relativeTime(e.at)}</div>
+              </div>
+            ))}
           </div>
         </SectionCard>
       </div>
@@ -346,15 +215,6 @@ function relativeTime(iso: string | null): string {
   const d = Math.round(h / 24);
   if (d < 7) return `${d}d ago`;
   return new Date(iso).toLocaleDateString("en-GB");
-}
-
-function Legend({ color, label }: { color: string; label: string }) {
-  return (
-    <span className="inline-flex items-center gap-1.5">
-      <i className="inline-block" style={{ width: 10, height: 2, borderRadius: 1, background: color }} />
-      {label}
-    </span>
-  );
 }
 
 function FeedIcon({ event }: { event: ActivityEvent }) {

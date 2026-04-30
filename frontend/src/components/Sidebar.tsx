@@ -3,6 +3,7 @@ import logo from "../assets/spencer-logo.png";
 
 const primaryNav = [
   { to: "/dashboard", label: "Dashboard", icon: IconDashboard },
+  { to: "/metrics",   label: "Metrics",   icon: IconMetrics },
   { to: "/forms",     label: "Forms",     icon: IconForms },
   { to: "/sites",     label: "Sites",     icon: IconSites },
 ];
@@ -126,6 +127,13 @@ function IconDashboard({ className = "" }) {
       <rect x="11" y="3" width="6" height="5" rx="1.2" />
       <rect x="11" y="10" width="6" height="7" rx="1.2" />
       <rect x="3" y="13" width="6" height="4" rx="1.2" />
+    </svg>
+  );
+}
+function IconMetrics({ className = "" }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className={className}>
+      <path d="M3 17V8M8 17V4M13 17v-7M18 17v-3" strokeLinecap="round" />
     </svg>
   );
 }

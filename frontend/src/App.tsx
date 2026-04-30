@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import Sidebar from "./components/Sidebar";
 import TopBar from "./components/TopBar";
 import DashboardPage from "./pages/DashboardPage";
+import MetricsPage from "./pages/MetricsPage";
 import SectorsPage from "./pages/SectorsPage";
 import ProjectDashboardPage from "./pages/ProjectDashboardPage";
 import SitesPage from "./pages/SitesPage";
@@ -39,6 +40,7 @@ export default function App() {
               <Routes>
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
                 <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/metrics" element={<MetricsPage />} />
                 <Route path="/dashboard/sectors" element={<SectorsPage />} />
                 <Route path="/forms" element={<FormsPage />} />
                 <Route path="/sites" element={<SitesPage />} />
