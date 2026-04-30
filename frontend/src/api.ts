@@ -95,6 +95,7 @@ export async function fetchForms(params: {
   date_to?: string;
   status?: string;
   not_downloaded_only?: boolean;
+  mapped_only?: boolean;
   limit?: number;
 }): Promise<FormsResponse> {
   const { data } = await api.get<FormsResponse>("/api/forms", { params });

@@ -234,10 +234,11 @@ def list_forms(
     date_to: Optional[date] = Query(None),
     status: Optional[str] = Query(None),
     not_downloaded_only: bool = Query(False),
+    mapped_only: bool = Query(True, description="When true, restrict to forms whose template has a registered custom report. Default true — most users want the downloadable subset."),
     limit: int = Query(500, le=2000),
 ):
     where = ["(f.deleted = 0 OR f.deleted IS NULL)"]
-    params = {}
+    params: dict = {}
 
     if site_id:
         where.append("f.projectId IN :site_ids")
@@ -254,6 +255,27 @@ def list_forms(
     if status:
         where.append("f.status = :status")
         params["status"] = status
+
+    if mapped_only:
+        # Filter at the SQL level so the LIMIT applies to the mapped subset,
+        # not pre-truncated. Pulls live registry from the templates_userland
+        # loader so any uploaded template auto-included.
+        mapped_names = list(TEMPLATES_WITH_CUSTOM_REPORT.keys())
+        if not mapped_names:
+            return {
+                "count": 0, "limit": limit, "filters": {
+                    "site_id": site_id, "form_type": form_type,
+                    "date_from": str(date_from) if date_from else None,
+                    "date_to": str(date_to) if date_to else None,
+                    "status": status, "not_downloaded_only": not_downloaded_only,
+                    "mapped_only": True,
+                },
+                "forms": [],
+            }
+        ph = ",".join(f":mt{i}" for i, _ in enumerate(mapped_names))
+        where.append(f"f.template_name IN ({ph})")
+        for i, n in enumerate(mapped_names):
+            params[f"mt{i}"] = n
 
     where_sql = " AND ".join(where) if where else "1=1"
 

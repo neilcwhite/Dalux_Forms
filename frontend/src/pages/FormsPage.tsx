@@ -18,6 +18,9 @@ export default function FormsPage() {
   const dateTo = searchParams.get("date_to") ?? "";
   const status = searchParams.get("status") ?? "";
   const notDownloaded = searchParams.get("new_only") === "1";
+  // Mapped-only defaults ON — most users want the downloadable subset.
+  // Set ?mapped_only=0 in the URL to see every form.
+  const mappedOnly = searchParams.get("mapped_only") !== "0";
 
   function setFilter(key: string, value: string | null) {
     const next = new URLSearchParams(searchParams);
@@ -46,7 +49,7 @@ export default function FormsPage() {
   const siteSummaryQuery = useQuery({ queryKey: ["site-form-summary", formType],    queryFn: () => fetchSiteFormSummary(formType || undefined) });
   const formTypesQuery   = useQuery({ queryKey: ["form-types"],                     queryFn: fetchFormTypes });
   const formsQuery       = useQuery({
-    queryKey: ["forms", siteIds, formType, dateFrom, dateTo, status, notDownloaded],
+    queryKey: ["forms", siteIds, formType, dateFrom, dateTo, status, notDownloaded, mappedOnly],
     queryFn: () => fetchForms({
       site_id: siteIds.length ? siteIds : undefined,
       form_type: formType || undefined,
@@ -54,11 +57,12 @@ export default function FormsPage() {
       date_to: dateTo || undefined,
       status: status || undefined,
       not_downloaded_only: notDownloaded,
+      mapped_only: mappedOnly,
       limit: 500,
     }),
   });
 
-  const anyFilterActive = siteIds.length > 0 || formType || dateFrom || dateTo || status || notDownloaded;
+  const anyFilterActive = siteIds.length > 0 || formType || dateFrom || dateTo || status || notDownloaded || !mappedOnly;
   const downloadableForms = (formsQuery.data?.forms ?? []).filter(f => f.has_custom_report);
   const allVisibleSelected = downloadableForms.length > 0 && downloadableForms.every(f => selected.has(f.formId));
 
@@ -275,6 +279,20 @@ export default function FormsPage() {
                   className="h-3.5 w-3.5 accent-[var(--color-brand-600)]"
                 />
                 Pending only
+              </label>
+
+              <label
+                className="col-span-2 inline-flex items-center gap-2 text-[12.5px] cursor-pointer select-none"
+                style={{ color: "var(--color-text)" }}
+                title="When on, only forms whose template has a downloadable PDF report. When off, every Dalux form (incl. raw checklists)."
+              >
+                <input
+                  type="checkbox"
+                  checked={mappedOnly}
+                  onChange={e => setFilter("mapped_only", e.target.checked ? null : "0")}
+                  className="h-3.5 w-3.5 accent-[var(--color-brand-600)]"
+                />
+                Mapped templates only
               </label>
             </div>
           </Card>
