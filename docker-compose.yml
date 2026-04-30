@@ -17,7 +17,7 @@ services:
       DB_NAME: ${DB_NAME:-SHEQ}
       # Dalux API configuration
       DALUX_API_KEY: ${DALUX_API_KEY}
-      DALUX_BASE_URL: ${DALUX_BASE_URL:-https://api.daluxbuild.com}
+      DALUX_BASE_URL: ${DALUX_BASE_URL:-https://node2.field.dalux.com/service/api}
       # App settings
       APP_NAME: ${APP_NAME:-Dalux Report Portal}
       DEBUG: ${DEBUG:-false}
