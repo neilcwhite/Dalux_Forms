@@ -334,3 +334,53 @@ export async function fetchActivity(since: "24h" | "7d" | "30d" = "24h", limit =
   const { data } = await api.get<ActivityResponse>("/api/activity", { params: { since, limit } });
   return data;
 }
+
+// --- Top bar: global search + sync status ----------------------------------
+
+export interface SearchSiteHit {
+  sos_number: string | null;
+  site_name: string | null;
+  sos_name: string | null;
+  sector: string | null;
+  client: string | null;
+  dalux_id: string | null;
+}
+
+export interface SearchFormHit {
+  formId: string;
+  number: string | null;
+  template_name: string;
+  status: string;
+  created: string;
+  site_display: string | null;
+  sos_number: string | null;
+}
+
+export interface SearchTemplateHit {
+  template_name: string;
+  form_count: number;
+}
+
+export interface SearchResponse {
+  q: string;
+  sites: SearchSiteHit[];
+  forms: SearchFormHit[];
+  templates: SearchTemplateHit[];
+}
+
+export async function fetchSearch(q: string): Promise<SearchResponse> {
+  const { data } = await api.get<SearchResponse>("/api/search", { params: { q } });
+  return data;
+}
+
+export interface SyncStatus {
+  last_synced_at: string | null;
+  endpoint: string | null;
+  ok: boolean;
+  records_upserted?: number;
+}
+
+export async function fetchSyncStatus(): Promise<SyncStatus> {
+  const { data } = await api.get<SyncStatus>("/api/sync-status");
+  return data;
+}

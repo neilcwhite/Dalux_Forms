@@ -1,4 +1,4 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import logo from "../assets/spencer-logo.png";
 
 const primaryNav = [
@@ -7,11 +7,15 @@ const primaryNav = [
   { to: "/sites",     label: "Sites",     icon: IconSites },
 ];
 
+// Admin nav: Admin links to the Projects tab; Templates links straight into
+// the Templates tab on the same page. Both share /admin so we use a custom
+// active rule (matchTab) to highlight only the one matching the current
+// ?tab= query param — without it both would highlight on /admin.
 const adminNav = [
-  { to: "/admin",     label: "Admin",     icon: IconAdmin },
-  { to: "/templates", label: "Templates", icon: IconTemplate, disabled: true },
-  { to: "/settings",  label: "Settings",  icon: IconCog,      disabled: true },
-  { to: "/audit",     label: "Audit log", icon: IconLog,      disabled: true },
+  { to: "/admin",                 label: "Admin",     icon: IconAdmin,    matchTab: "projects" },
+  { to: "/admin?tab=templates",   label: "Templates", icon: IconTemplate, matchTab: "templates" },
+  { to: "/settings",              label: "Settings",  icon: IconCog,      disabled: true },
+  { to: "/audit",                 label: "Audit log", icon: IconLog,      disabled: true },
 ];
 
 export default function Sidebar() {
@@ -61,8 +65,15 @@ function NavSection({ label, className = "" }: { label: string; className?: stri
 }
 
 function NavItem({
-  to, label, icon: Icon, disabled,
-}: { to: string; label: string; icon: React.FC<{ className?: string }>; disabled?: boolean }) {
+  to, label, icon: Icon, disabled, matchTab,
+}: {
+  to: string;
+  label: string;
+  icon: React.FC<{ className?: string }>;
+  disabled?: boolean;
+  matchTab?: string;
+}) {
+  const location = useLocation();
   if (disabled) {
     return (
       <div
@@ -75,17 +86,31 @@ function NavItem({
       </div>
     );
   }
+
+  // Custom active logic for tabbed routes (Admin / Templates share /admin).
+  // Falls back to NavLink's default isActive when no matchTab is set.
+  const isActive = (() => {
+    if (!matchTab) return undefined;
+    const path = to.split("?")[0];
+    if (location.pathname !== path) return false;
+    const currentTab = new URLSearchParams(location.search).get("tab");
+    if (matchTab === "projects") return !currentTab || currentTab === "projects";
+    return currentTab === matchTab;
+  })();
+
   return (
     <NavLink
       to={to}
-      className={({ isActive }) =>
-        [
+      end={!matchTab ? false : undefined}
+      className={({ isActive: defaultActive }) => {
+        const active = matchTab ? !!isActive : defaultActive;
+        return [
           "flex items-center gap-2.5 px-3 py-2 rounded transition-colors",
-          isActive
+          active
             ? "bg-[var(--color-sidebar-active)] text-white"
             : "text-white/70 hover:bg-[var(--color-sidebar-hover)] hover:text-white",
-        ].join(" ")
-      }
+        ].join(" ");
+      }}
     >
       <Icon className="h-4 w-4" />
       <span>{label}</span>

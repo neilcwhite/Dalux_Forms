@@ -438,6 +438,115 @@ def bulk_download(
 
 
 # ---------------------------------------------------------------------------
+# Search — top bar global search box
+# ---------------------------------------------------------------------------
+
+@app.get("/api/search")
+def search(
+    q: str = Query("", min_length=0, max_length=200),
+    limit_per_kind: int = Query(5, ge=1, le=20),
+    db: Session = Depends(get_db),
+    app_db: Session = Depends(get_app_db),
+):
+    """Cross-table substring search for the top bar.
+    Returns up to N matches each from sites, forms, and templates.
+    Hidden projects (per the Admin page) are filtered out — same UX rule
+    as the Sites worklist."""
+    q = q.strip()
+    if len(q) < 2:
+        return {"q": q, "sites": [], "forms": [], "templates": []}
+    like = f"%{q}%"
+
+    hidden_dalux_ids = {h.dalux_project_id for h in app_db.query(HiddenProject).all()}
+
+    sites_raw = db.execute(text("""
+        SELECT s.sos_number, s.site_name, s.sos_name, s.sector, s.client, s.dalux_id
+        FROM sheq_sites s
+        WHERE (s.sos_number LIKE :q OR s.site_name LIKE :q OR s.sos_name LIKE :q)
+        ORDER BY
+            CASE WHEN s.sos_number LIKE :exact THEN 0 ELSE 1 END,
+            COALESCE(s.site_name, s.sos_name)
+        LIMIT :n
+    """), {"q": like, "exact": q + "%", "n": limit_per_kind * 2}).mappings().all()
+    sites = [dict(s) for s in sites_raw if s.get("dalux_id") not in hidden_dalux_ids][:limit_per_kind]
+
+    forms_raw = db.execute(text("""
+        SELECT f.formId, f.number, f.template_name, f.status, f.created, f.projectId,
+               COALESCE(s.site_name, p.projectName) AS site_display,
+               s.sos_number, s.dalux_id
+        FROM DLX_2_forms f
+        LEFT JOIN DLX_2_projects p
+          ON f.projectId COLLATE utf8mb4_unicode_ci = p.projectId COLLATE utf8mb4_unicode_ci
+        LEFT JOIN sheq_sites s
+          ON f.projectId COLLATE utf8mb4_unicode_ci = s.dalux_id COLLATE utf8mb4_unicode_ci
+        WHERE (f.deleted = 0 OR f.deleted IS NULL)
+          AND (f.number LIKE :q OR f.formId LIKE :q)
+        ORDER BY f.created DESC
+        LIMIT :n
+    """), {"q": like, "n": limit_per_kind * 2}).mappings().all()
+    forms = [
+        {k: v for k, v in dict(f).items() if k not in ("projectId", "dalux_id")}
+        for f in forms_raw
+        if f.get("dalux_id") not in hidden_dalux_ids and f.get("projectId") not in hidden_dalux_ids
+    ][:limit_per_kind]
+
+    templates = db.execute(text("""
+        SELECT template_name, COUNT(*) AS form_count
+        FROM DLX_2_forms
+        WHERE (deleted = 0 OR deleted IS NULL)
+          AND template_name LIKE :q
+        GROUP BY template_name
+        ORDER BY form_count DESC
+        LIMIT :n
+    """), {"q": like, "n": limit_per_kind}).mappings().all()
+
+    return {
+        "q": q,
+        "sites": [dict(s) for s in sites],
+        "forms": [dict(f) for f in forms],
+        "templates": [dict(t) for t in templates],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Sync status — for the TopBar "last synced" indicator
+# ---------------------------------------------------------------------------
+
+@app.get("/api/sync-status")
+def sync_status(db: Session = Depends(get_db)):
+    """Most recent successful Dalux sync. Reads DLX_2_sync_log for the latest
+    'forms_sync_complete' entry; falls back to the latest successful row.
+    The frontend computes relative time and colour-codes against thresholds."""
+    row = db.execute(text("""
+        SELECT synced_at, endpoint, success, records_upserted
+        FROM DLX_2_sync_log
+        WHERE endpoint = 'forms_sync_complete'
+        ORDER BY synced_at DESC
+        LIMIT 1
+    """)).mappings().first()
+
+    if not row:
+        # Fallback: last successful row of any kind
+        row = db.execute(text("""
+            SELECT synced_at, endpoint, success, records_upserted
+            FROM DLX_2_sync_log
+            WHERE success = 1
+            ORDER BY synced_at DESC
+            LIMIT 1
+        """)).mappings().first()
+
+    if not row:
+        return {"last_synced_at": None, "endpoint": None, "ok": False}
+
+    return {
+        "last_synced_at": row["synced_at"].isoformat() if row["synced_at"] else None,
+        "endpoint": row["endpoint"],
+        "ok": bool(row["success"]),
+        "records_upserted": row["records_upserted"],
+    }
+
+
+# ---------------------------------------------------------------------------
 # Admin — project status (mapped / unmapped / hidden)
 # ---------------------------------------------------------------------------
 

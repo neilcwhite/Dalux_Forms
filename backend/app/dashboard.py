@@ -19,6 +19,7 @@ from sqlalchemy import text, DateTime, String, Integer
 from sqlalchemy.orm import Session
 
 from app.database import get_db, get_app_db
+from app.templates_userland import loader as template_loader
 
 
 router = APIRouter(tags=["dashboard"])
@@ -47,14 +48,52 @@ def _range_cutoff(range_param: str) -> Optional[datetime]:
     return datetime.utcnow() - delta
 
 
-def _fetch_forms(db: Session, since: Optional[datetime]) -> list[dict]:
+def _mapped_template_names() -> list[str]:
+    """Templates with a custom-report builder registered (built-in + uploaded).
+    Dashboard metrics restrict themselves to these — forms whose template
+    has no custom report (e.g. raw ITP checklists) aren't downloadable as
+    PDFs from this app, so they're noise on a "downloadable reports"
+    dashboard."""
+    return list(template_loader.get_templates_with_custom_report().keys())
+
+
+# Sector display name normalisation. M&E is operationally subsumed into Rail,
+# so it's rolled up at the dashboard layer rather than re-tagged in the DB.
+# Add other consolidations here if more sectors merge in future.
+_SECTOR_ALIASES: dict[str, str] = {
+    "M&E": "Rail",
+}
+
+
+def _normalise_sector(name: Optional[str]) -> str:
+    if not name:
+        return "Unassigned"
+    return _SECTOR_ALIASES.get(name, name)
+
+
+def _fetch_forms(
+    db: Session,
+    since: Optional[datetime],
+    only_mapped_templates: bool = True,
+) -> list[dict]:
     """All forms (optionally limited by created cutoff) with project + site
-    metadata. Returns lightweight dicts for in-Python aggregation."""
+    metadata. By default returns only forms whose template has a registered
+    custom report — pass only_mapped_templates=False to see everything."""
     where = ["(f.deleted = 0 OR f.deleted IS NULL)"]
     binds: dict = {}
     if since is not None:
         where.append("f.created >= :since")
         binds["since"] = since
+
+    if only_mapped_templates:
+        templates = _mapped_template_names()
+        if not templates:
+            # No custom-report templates registered → no forms to count
+            return []
+        placeholders = ",".join(f":tpl{i}" for i in range(len(templates)))
+        where.append(f"f.template_name IN ({placeholders})")
+        for i, tn in enumerate(templates):
+            binds[f"tpl{i}"] = tn
 
     rows = db.execute(text(f"""
         SELECT
@@ -238,13 +277,13 @@ def dashboard_group(
     })
 
     for s in sites:
-        sector = s.get("sector") or "Unassigned"
+        sector = _normalise_sector(s.get("sector"))
         sector_data[sector]["sites"].add(s["dalux_id"])
         if s["dalux_id"] in active_dalux_ids:
             sector_data[sector]["active"].add(s["dalux_id"])
 
     for f in forms_in_range:
-        sector = f.get("sector") or "Unassigned"
+        sector = _normalise_sector(f.get("sector"))
         b = sector_data[sector]
         b["forms_in_range"].append(f)
         cls = _classify_form(f, download_data.get(f["formId"]))
@@ -278,7 +317,7 @@ def dashboard_group(
             "dalux_id": dalux,
             "sos_number": f.get("sos_number"),
             "site_name": f.get("site_display") or "(unknown)",
-            "sector": f.get("sector") or "Unassigned",
+            "sector": _normalise_sector(f.get("sector")),
             "total": 0, "downloaded": 0, "pending": 0, "stale": 0,
         })
         s["total"] += 1
@@ -336,13 +375,13 @@ def dashboard_sectors(
     })
 
     for s in sites:
-        sector = s.get("sector") or "Unassigned"
+        sector = _normalise_sector(s.get("sector"))
         sector_buckets[sector]["sites"].add(s["dalux_id"])
         if s["dalux_id"] in active_dalux_ids:
             sector_buckets[sector]["active"].add(s["dalux_id"])
 
     for f in forms_in_range:
-        sector = f.get("sector") or "Unassigned"
+        sector = _normalise_sector(f.get("sector"))
         b = sector_buckets[sector]
         b["forms_in_range"].append(f)
         cls = _classify_form(f, download_data.get(f["formId"]))
@@ -430,19 +469,32 @@ def dashboard_project(
             "templates": [], "contributors": [], "recent": [],
         }
 
-    forms = db.execute(text("""
-        SELECT f.formId, f.projectId, f.template_name, f.status, f.number,
-               f.created, f.modified, f.createdBy_userId,
-               u.firstName, u.lastName
-        FROM DLX_2_forms f
-        LEFT JOIN DLX_2_users u
-          ON f.createdBy_userId COLLATE utf8mb4_unicode_ci = u.userId COLLATE utf8mb4_unicode_ci
-         AND f.projectId COLLATE utf8mb4_unicode_ci = u.projectId COLLATE utf8mb4_unicode_ci
-        WHERE f.projectId = :pid
-          AND (f.deleted = 0 OR f.deleted IS NULL)
-        ORDER BY f.created DESC
-    """), {"pid": site["dalux_id"]}).mappings().all()
-    forms = [dict(r) for r in forms]
+    # Only include forms whose template has a registered custom report —
+    # raw ITP checklists etc. are noise on a "downloadable reports" dashboard.
+    # NB: `range` param shadows builtin range() in this function's scope, so
+    # use enumerate for placeholder generation.
+    templates = _mapped_template_names()
+    if not templates:
+        forms = []
+    else:
+        placeholders = ",".join(f":tpl{i}" for i, _ in enumerate(templates))
+        binds: dict = {"pid": site["dalux_id"]}
+        for i, tn in enumerate(templates):
+            binds[f"tpl{i}"] = tn
+        forms = db.execute(text(f"""
+            SELECT f.formId, f.projectId, f.template_name, f.status, f.number,
+                   f.created, f.modified, f.createdBy_userId,
+                   u.firstName, u.lastName
+            FROM DLX_2_forms f
+            LEFT JOIN DLX_2_users u
+              ON f.createdBy_userId COLLATE utf8mb4_unicode_ci = u.userId COLLATE utf8mb4_unicode_ci
+             AND f.projectId COLLATE utf8mb4_unicode_ci = u.projectId COLLATE utf8mb4_unicode_ci
+            WHERE f.projectId = :pid
+              AND (f.deleted = 0 OR f.deleted IS NULL)
+              AND f.template_name IN ({placeholders})
+            ORDER BY f.created DESC
+        """), binds).mappings().all()
+        forms = [dict(r) for r in forms]
 
     download_data = _fetch_downloads(app_db, [f["formId"] for f in forms])
 
@@ -533,7 +585,7 @@ def _shape_site(s: dict) -> dict:
         "sos_number": s.get("sos_number"),
         "dalux_id": s.get("dalux_id"),
         "name": name,
-        "sector": s.get("sector") or "Unassigned",
+        "sector": _normalise_sector(s.get("sector")),
         "client": s.get("client"),
         "status": s.get("status") or "Active",
         "primary_contact": s.get("primary_contact"),
@@ -564,24 +616,35 @@ def recent_activity(
         raise HTTPException(400, f"unknown since {since!r}")
     cutoff = datetime.utcnow() - since_map[since]
 
-    new_forms = db.execute(text("""
-        SELECT f.formId, f.template_name, f.created, f.number, f.status,
-               COALESCE(s.site_name, p.projectName) AS site_display,
-               s.sos_number, s.sector,
-               u.firstName, u.lastName
-        FROM DLX_2_forms f
-        LEFT JOIN DLX_2_projects p
-          ON f.projectId COLLATE utf8mb4_unicode_ci = p.projectId COLLATE utf8mb4_unicode_ci
-        LEFT JOIN sheq_sites s
-          ON f.projectId COLLATE utf8mb4_unicode_ci = s.dalux_id COLLATE utf8mb4_unicode_ci
-        LEFT JOIN DLX_2_users u
-          ON f.createdBy_userId COLLATE utf8mb4_unicode_ci = u.userId COLLATE utf8mb4_unicode_ci
-         AND f.projectId COLLATE utf8mb4_unicode_ci = u.projectId COLLATE utf8mb4_unicode_ci
-        WHERE f.created >= :cutoff
-          AND (f.deleted = 0 OR f.deleted IS NULL)
-        ORDER BY f.created DESC
-        LIMIT :limit
-    """), {"cutoff": cutoff, "limit": limit * 2}).mappings().all()
+    # Activity feed shows only forms with registered custom reports — those
+    # are the ones doc control needs to know about (downloadable).
+    templates = _mapped_template_names()
+    if not templates:
+        new_forms = []
+    else:
+        ph_t = ",".join(f":tpl{i}" for i in range(len(templates)))
+        binds_t = {"cutoff": cutoff, "limit": limit * 2}
+        for i, tn in enumerate(templates):
+            binds_t[f"tpl{i}"] = tn
+        new_forms = db.execute(text(f"""
+            SELECT f.formId, f.template_name, f.created, f.number, f.status,
+                   COALESCE(s.site_name, p.projectName) AS site_display,
+                   s.sos_number, s.sector,
+                   u.firstName, u.lastName
+            FROM DLX_2_forms f
+            LEFT JOIN DLX_2_projects p
+              ON f.projectId COLLATE utf8mb4_unicode_ci = p.projectId COLLATE utf8mb4_unicode_ci
+            LEFT JOIN sheq_sites s
+              ON f.projectId COLLATE utf8mb4_unicode_ci = s.dalux_id COLLATE utf8mb4_unicode_ci
+            LEFT JOIN DLX_2_users u
+              ON f.createdBy_userId COLLATE utf8mb4_unicode_ci = u.userId COLLATE utf8mb4_unicode_ci
+             AND f.projectId COLLATE utf8mb4_unicode_ci = u.projectId COLLATE utf8mb4_unicode_ci
+            WHERE f.created >= :cutoff
+              AND (f.deleted = 0 OR f.deleted IS NULL)
+              AND f.template_name IN ({ph_t})
+            ORDER BY f.created DESC
+            LIMIT :limit
+        """), binds_t).mappings().all()
 
     downloads = app_db.execute(text("""
         SELECT form_id, downloaded_at, trigger_type, file_size_bytes
