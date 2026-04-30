@@ -25,6 +25,9 @@ services:
       NOTIFY_POWER_AUTOMATE_URL: ${NOTIFY_POWER_AUTOMATE_URL:-}
       APP_PUBLIC_URL: ${APP_PUBLIC_URL:-http://localhost:8000}
       NOTIFY_ENABLED: ${NOTIFY_ENABLED:-false}
+      # Template upload feature — set this to enable POST /api/admin/templates/upload.
+      # Leave unset to disable the upload endpoint (returns 503).
+      ADMIN_UPLOAD_TOKEN: ${ADMIN_UPLOAD_TOKEN:-}
     volumes:
       - ./backend/data:/app/backend/data
       - ./backend/photo_cache:/app/backend/photo_cache

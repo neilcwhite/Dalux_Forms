@@ -20,6 +20,10 @@ class Settings:
     APP_PUBLIC_URL = os.getenv("APP_PUBLIC_URL", "http://localhost:8000")
     NOTIFY_ENABLED = os.getenv("NOTIFY_ENABLED", "false").lower() == "true"
 
+    # Admin template upload — gates POST /api/admin/templates/upload
+    # Empty/unset = feature disabled (endpoint returns 503).
+    ADMIN_UPLOAD_TOKEN = os.getenv("ADMIN_UPLOAD_TOKEN", "")
+
     @property
     def DB_URL(self):
         return f"mysql+pymysql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"

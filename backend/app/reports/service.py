@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from weasyprint import HTML
 from app.config import settings
-from app.reports import cs053, cs037, cs208
+from app.templates_userland import loader as template_loader
 
 # --- Paths ---
 BACKEND_ROOT = Path(__file__).parent.parent.parent
@@ -29,13 +29,10 @@ REPORTS_CACHE = BACKEND_ROOT / "reports_cache"
 PHOTO_CACHE.mkdir(exist_ok=True)
 REPORTS_CACHE.mkdir(exist_ok=True)
 
-# --- Template registry ---
-# Key = exact Dalux template_name string from DLX_2_forms.template_name.
-TEMPLATE_HANDLERS = {
-    "Weekly Safety inspection": cs053,
-    "Permit to Undertake Hot Work": cs037,
-    "Protective Coating Inspection (Complete)": cs208,
-}
+# Template registry is now version-aware and lives in templates_userland.loader.
+# Built-in handlers (cs037, cs053, cs208) register as v1 there at startup;
+# uploaded versions slot in as v2/v3/… The resolver picks the correct module
+# for a given form based on form.created vs each version's VALID_FROM.
 
 
 class ReportError(Exception):
@@ -70,7 +67,10 @@ def generate_report(db: Session, form_id: str) -> tuple[bytes, str, int]:
     if not form_meta:
         raise ReportError(f"Form {form_id} not found")
 
-    handler = TEMPLATE_HANDLERS.get(form_meta["template_name"])
+    # Version-aware handler resolution: picks the right module for this
+    # form's created date based on each version's VALID_FROM. Built-ins
+    # cover the historical floor; uploads supersede for newer forms.
+    handler = template_loader.resolve_handler(form_meta["template_name"], form_meta["created"])
     if handler is None:
         raise ReportError(
             f"No report template configured for form type '{form_meta['template_name']}'"

@@ -56,3 +56,25 @@ class HiddenProject(AppBase):
 
     dalux_project_id = Column(String(64), primary_key=True)
     hidden_at = Column(DateTime, server_default=func.now(), nullable=False)
+
+
+class TemplateUploadAudit(AppBase):
+    """Append-only log of every template-upload action (success and failure).
+
+    Captures *what changed and when* — operationally important because the
+    upload feature is, by design, remote code execution. IT can review at
+    any time. Records uploads, disables, enables, and deletes."""
+    __tablename__ = "template_uploads_audit"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    uploaded_at = Column(DateTime, server_default=func.now(), nullable=False)
+    form_code = Column(String(32), nullable=False, index=True)
+    version = Column(Integer, nullable=True,
+                     comment="Assigned version on success; null if rejected before assignment")
+    valid_from = Column(String(10), nullable=True, comment="ISO date YYYY-MM-DD")
+    python_sha256 = Column(String(64), nullable=True)
+    template_sha256 = Column(String(64), nullable=True)
+    outcome = Column(String(16), nullable=False,
+                     comment="'registered' | 'rejected' | 'disabled' | 'enabled' | 'deleted'")
+    error_message = Column(String(500), nullable=True)
+    uploader_ip = Column(String(64), nullable=True)

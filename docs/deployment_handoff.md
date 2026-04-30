@@ -56,12 +56,16 @@ DEBUG=false
 NOTIFY_POWER_AUTOMATE_URL=<full Power Automate URL — Neil has this; it contains a sig= signature, treat as a secret>
 APP_PUBLIC_URL=http://<the URL colleagues will use, e.g. http://dalux-forms.cspencerltd.co.uk>
 NOTIFY_ENABLED=false
+
+# Template upload feature (see "Step 6" below)
+ADMIN_UPLOAD_TOKEN=<a strong random string, e.g. `openssl rand -hex 32` — share with Neil only>
 ```
 
 **Security notes:**
 - `.env` is gitignored — never commit it
 - `NOTIFY_POWER_AUTOMATE_URL` contains a SAS signature; anyone with this URL can post to the Teams channel. Restrict file permissions: `chmod 600 backend/.env`
 - `APP_PUBLIC_URL` must be the URL colleagues reach the app at — it's embedded in the "Download PDF" buttons in Teams messages
+- `ADMIN_UPLOAD_TOKEN` gates the template-upload endpoint. **Treat this like an admin password.** See Step 6 below for full context — this feature lets Neil ship new form-report templates without you needing to redeploy. Rotate the token if it's ever shared inappropriately
 
 ---
 
@@ -127,7 +131,41 @@ Should see: `notification scheduler started (07:30-19:30 Europe/London, :30 past
 
 ---
 
-## Step 6 — Verify
+## Step 6 — Template upload feature (read first, then verify)
+
+This deployment includes a feature that lets Neil upload new form-report templates (a `.py` builder + `.html.j2` Jinja template pair) through a web admin page, **without you needing to redeploy the container.** This is intentional — it keeps you off the critical path for new form types.
+
+**What you need to know:**
+
+- The endpoint is `POST /api/admin/templates/upload`. It accepts arbitrary Python code that the backend then imports and runs to render reports. **This is, by design, remote code execution as a service** for whoever holds the `ADMIN_UPLOAD_TOKEN`. The mitigations are:
+  1. **Token gate.** Without `ADMIN_UPLOAD_TOKEN` set, the endpoint returns 503 (disabled). With it set, only requests carrying `X-Admin-Token: <token>` are accepted — others get 401.
+  2. **VPN-only network.** The app is only reachable from inside the Spencer VPN. External attackers cannot reach the endpoint.
+  3. **Audit log.** Every upload — successful or not — writes a row to the `template_uploads_audit` SQLite table (timestamp, file SHA-256, IP, outcome, error if any). You can query this any time:
+     ```bash
+     docker-compose exec backend sqlite3 /app/backend/data/app.db \
+       "SELECT uploaded_at, form_code, version, outcome, uploader_ip FROM template_uploads_audit ORDER BY uploaded_at DESC LIMIT 20"
+     ```
+  4. **Validation gate.** Uploads with malformed Python, missing required attributes, or attempts to override built-in templates are rejected before any file lands on disk.
+  5. **Built-in templates locked.** The original CS037/CS053/CS208 templates ship inside the Docker image and **cannot be replaced or deleted via upload** — uploads can only add new versions on top of them, used for forms created after a `VALID_FROM` date the upload declares. Older forms always render with the built-in version.
+
+- **Persistence:** uploaded templates live in `backend/data/templates_userland/` (already covered by the existing `./backend/data` volume mount — survives container restarts and `docker-compose down`).
+
+- **Recommended:** generate a strong token now if you haven't already, and only share it with Neil via your normal secret channel:
+  ```bash
+  openssl rand -hex 32
+  ```
+  Put it in `backend/.env` as `ADMIN_UPLOAD_TOKEN=<...>` and restart:
+  ```bash
+  docker-compose restart backend
+  ```
+
+**If you'd rather not enable this feature for now**, leave `ADMIN_UPLOAD_TOKEN` unset. The endpoint will return 503 and Neil will need to come back to you for new templates the same way he did for the initial deployment.
+
+**To rotate / revoke the token:** change the value in `.env`, restart the backend. Old token immediately invalid.
+
+---
+
+## Step 7 — Verify
 
 1. **Frontend reachable:** `curl http://localhost:80` (from the server) — should return HTML
 2. **Backend reachable:** `curl http://localhost:8000/` — should return `{"app":"Dalux Report Portal","status":"running",...}`
@@ -172,7 +210,8 @@ Three directories under `/opt/dalux-forms/backend/` persist between container re
 
 | Path | Contains | Notes |
 |---|---|---|
-| `backend/data/app.db` | SQLite — download audit log + notifications_sent table | **Back up periodically** — losing this means re-running the bootstrap, which creates a brief risk window |
+| `backend/data/app.db` | SQLite — downloads + notifications_sent + hidden_projects + template_uploads_audit | **Back up periodically** — losing this means re-running the notification bootstrap, plus losing the upload audit history |
+| `backend/data/templates_userland/` | Uploaded report templates (per-form-code subfolders, one per version) | **Back up periodically** — these are the user's content, not in git. Losing this means re-uploading every custom template |
 | `backend/photo_cache/` | Dalux photos cached locally | Safe to delete if space is tight; will re-download on demand |
 | `backend/reports_cache/` | Generated PDFs cached by form ID + modified time | Safe to delete; will re-generate on demand |
 
@@ -189,4 +228,5 @@ Three directories under `/opt/dalux-forms/backend/` persist between container re
 
 ## Reference
 
-Design and rationale: [docs/teams_notifications_plan.md](teams_notifications_plan.md) in the same repo.
+- Teams notifications design and rationale: [docs/teams_notifications_plan.md](teams_notifications_plan.md)
+- Template upload design and security model: [docs/template_upload_plan.md](template_upload_plan.md)

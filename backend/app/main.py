@@ -16,16 +16,26 @@ from app import models  # noqa: F401
 from app.models import Download, HiddenProject
 from app.reports.service import generate_report, ReportError
 from app.notifications import scheduler as notifications_scheduler
+from app.templates_userland import loader as template_loader
+from app.templates_userland.admin import router as templates_admin_router
 
 app = FastAPI(
     title=settings.APP_NAME,
     debug=settings.DEBUG,
 )
+app.include_router(templates_admin_router)
 
 
 @app.on_event("startup")
 def startup_init_app_db():
     AppBase.metadata.create_all(bind=app_engine)
+
+
+@app.on_event("startup")
+def startup_template_registry():
+    """Register built-in templates and scan templates_userland/ for any
+    previously-uploaded versions. Must run before notifications start."""
+    template_loader.initialize()
 
 
 @app.on_event("startup")
@@ -38,20 +48,38 @@ def shutdown_notifications_scheduler():
     notifications_scheduler.shutdown()
 
 
-TEMPLATES_WITH_CUSTOM_REPORT = {
-    "Weekly Safety inspection": {
-        "code": "CS053",
-        "display": "CS053 — Weekly Safety inspection",
-    },
-    "Permit to Undertake Hot Work": {
-        "code": "CS037",
-        "display": "CS037 — Permit to undertake hot work",
-    },
-    "Protective Coating Inspection (Complete)": {
-        "code": "CS208",
-        "display": "CS208 — Protective Coating Inspection Report",
-    },
-}
+# Replaced by the version-aware registry in app.templates_userland.loader.
+# Kept as a property-like callable so existing call sites can keep doing
+# `TEMPLATES_WITH_CUSTOM_REPORT.get(...)` and `name in TEMPLATES_WITH_CUSTOM_REPORT`
+# — the snapshot reflects the live registry at call time, including any
+# uploaded templates.
+class _TemplatesWithCustomReportProxy:
+    def _live(self) -> dict:
+        return template_loader.get_templates_with_custom_report()
+
+    def __contains__(self, key) -> bool:
+        return key in self._live()
+
+    def __getitem__(self, key):
+        return self._live()[key]
+
+    def get(self, key, default=None):
+        return self._live().get(key, default)
+
+    def keys(self):
+        return self._live().keys()
+
+    def items(self):
+        return self._live().items()
+
+    def __iter__(self):
+        return iter(self._live())
+
+    def __len__(self) -> int:
+        return len(self._live())
+
+
+TEMPLATES_WITH_CUSTOM_REPORT = _TemplatesWithCustomReportProxy()
 
 
 @app.get("/")

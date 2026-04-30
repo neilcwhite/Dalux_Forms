@@ -132,3 +132,85 @@ export async function unhideProject(daluxProjectId: string): Promise<{ hidden: f
   );
   return data;
 }
+
+// --- Admin: template upload ---------------------------------------------
+
+export type TemplateSource = "builtin" | "uploaded";
+
+export interface TemplateVersion {
+  form_code: string;
+  version: number;
+  source: TemplateSource;
+  valid_from: string;            // ISO date
+  dalux_template_name: string;
+  form_display: string;
+  disabled: boolean;
+  uploaded_at: string | null;
+  python_sha256: string | null;
+  template_sha256: string | null;
+}
+
+export interface TemplateAuditRow {
+  id: number;
+  uploaded_at: string;
+  form_code: string;
+  version: number | null;
+  valid_from: string | null;
+  outcome: "registered" | "rejected" | "disabled" | "enabled" | "deleted";
+  error_message: string | null;
+  uploader_ip: string | null;
+  python_sha256: string | null;
+  template_sha256: string | null;
+}
+
+export async function fetchTemplateVersions(): Promise<TemplateVersion[]> {
+  const { data } = await api.get<TemplateVersion[]>("/api/admin/templates");
+  return data;
+}
+
+export async function fetchTemplateAudit(limit = 50): Promise<TemplateAuditRow[]> {
+  const { data } = await api.get<TemplateAuditRow[]>("/api/admin/templates/audit", {
+    params: { limit },
+  });
+  return data;
+}
+
+export async function uploadTemplate(
+  pythonFile: File,
+  templateFile: File,
+  adminToken: string,
+): Promise<{ form_code: string; version: number; valid_from: string; source: string; form_display: string }> {
+  const form = new FormData();
+  form.append("python_file", pythonFile);
+  form.append("template_file", templateFile);
+  const { data } = await api.post("/api/admin/templates/upload", form, {
+    headers: { "X-Admin-Token": adminToken },
+  });
+  return data;
+}
+
+export async function disableTemplateVersion(formCode: string, version: number, adminToken: string) {
+  const { data } = await api.post(
+    `/api/admin/templates/${encodeURIComponent(formCode)}/v${version}/disable`,
+    null,
+    { headers: { "X-Admin-Token": adminToken } },
+  );
+  return data;
+}
+
+export async function enableTemplateVersion(formCode: string, version: number, adminToken: string) {
+  const { data } = await api.post(
+    `/api/admin/templates/${encodeURIComponent(formCode)}/v${version}/enable`,
+    null,
+    { headers: { "X-Admin-Token": adminToken } },
+  );
+  return data;
+}
+
+export async function deleteTemplateVersion(formCode: string, version: number, adminToken: string) {
+  const { data } = await api.delete(
+    `/api/admin/templates/${encodeURIComponent(formCode)}/v${version}`,
+    { headers: { "X-Admin-Token": adminToken } },
+  );
+  return data;
+}
