@@ -9,7 +9,25 @@
       "Bash(git add *)",
       "Bash(git reset *)",
       "Bash(rm -f /c/GitHub/Dalux_Forms/backend/reports_cache/*.pdf)",
-      "Bash(venv/Scripts/python.exe /tmp/test_all_forms.py)"
+      "Bash(venv/Scripts/python.exe /tmp/test_all_forms.py)",
+      "Bash(./venv/Scripts/python.exe -c ' *)",
+      "Bash(grep -vE \"^2026.*INFO sqlalchemy|sqlalchemy.engine|BEGIN|COMMIT|ROLLBACK|cached|^[ ]*$\")",
+      "Bash(git -C \"c:/GitHub/Dalux_Forms\" add backend/app/main.py backend/app/models.py frontend/src/App.tsx frontend/src/api.ts frontend/src/components/Sidebar.tsx frontend/src/pages/AdminPage.tsx)",
+      "Bash(git -C \"c:/GitHub/Dalux_Forms\" status --short)",
+      "Bash(npx tsc *)",
+      "Bash(./venv/Scripts/python.exe -m pip install python-multipart==0.0.9)",
+      "Bash(npx vite *)",
+      "Bash(git -C \"c:/GitHub/Dalux_Forms\" add .gitignore backend/app/config.py backend/app/main.py backend/app/models.py backend/app/reports/service.py backend/app/templates_userland/ backend/requirements.txt docker-compose.yml docs/deployment_handoff.md docs/template_upload_plan.md frontend/src/api.ts frontend/src/pages/AdminPage.tsx)",
+      "Bash(git -C c:/GitHub/Dalux_Forms commit -m ' *)",
+      "Bash(git -C \"c:/GitHub/Dalux_Forms\" add frontend/src/components/TopBar.tsx frontend/src/components/ui.tsx frontend/src/assets/spencer-logo.png frontend/src/index.css frontend/src/pages/FormsPage.tsx)",
+      "Bash(git -C \"c:/GitHub/Dalux_Forms\" add backend/app/main.py backend/app/dashboard.py frontend/src/api.ts frontend/src/pages/DashboardPage.tsx frontend/src/pages/SectorsPage.tsx frontend/src/pages/ProjectDashboardPage.tsx frontend/src/components/dashboard/charts.tsx)",
+      "Bash(./venv/Scripts/python.exe -m pip install \"email-validator==2.1.1\")",
+      "Bash(git -C \"c:/GitHub/Dalux_Forms\" add backend/app/auth.py backend/app/config.py backend/app/main.py backend/app/models.py backend/requirements.txt docker-compose.yml docs/deployment_handoff.md frontend/src/App.tsx frontend/src/api.ts frontend/src/auth/ frontend/src/components/Sidebar.tsx frontend/src/components/TopBar.tsx frontend/src/pages/AdminPage.tsx frontend/src/pages/LoginPage.tsx)",
+      "Bash(git -C \"c:/GitHub/Dalux_Forms\" push)",
+      "Bash(git -C \"c:/GitHub/Dalux_Forms\" add docs/engineering_handoff.md)",
+      "Bash(git -C \"c:/GitHub/Dalux_Forms\" add backend/app/templates_userland/loader.py backend/app/templates_userland/admin.py backend/app/templates_userland/runtime.py docs/template_upload_plan.md frontend/src/api.ts frontend/src/pages/AdminPage.tsx)",
+      "Bash(git -C \"c:/GitHub/Dalux_Forms\" add docs/template_authoring_guide.md)",
+      "Bash(git -C \"c:/GitHub/Dalux_Forms\" add docs/deployment_handoff.md)"
     ]
   }
 }

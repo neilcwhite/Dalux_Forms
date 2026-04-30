@@ -166,8 +166,9 @@
     padding: 8pt 12pt;
     font-size: 11pt;
     font-weight: 700;
-    margin-top: 16pt;
+    margin-top: 0;
     margin-bottom: 12pt;
+    page-break-before: always;
   }
 
   /* Summary table */
@@ -198,8 +199,19 @@
   .fs-closed { color: var(--ok-green); font-weight: 600; }
   .fs-open { color: #B7770D; font-weight: 600; }
 
-  /* Expanded finding cards */
-  .finding-card { border: 1px solid var(--divider); margin-bottom: 14pt; page-break-inside: avoid; }
+  /* Expanded finding cards. Each card renders on its own page with a
+     2x2 photo grid below it (up to 4 photos per page). If a finding
+     has 5+ photos, the extras spill onto overflow pages that are also
+     forced to new pages. box-sizing: border-box so the card's visual
+     width matches its 100% declaration — otherwise the 1px border
+     pushes it 2px wider than the photo grid below and alignment slips. */
+  .finding-card {
+    border: 1px solid var(--divider);
+    margin-bottom: 0;
+    page-break-before: always;
+    box-sizing: border-box;
+    width: 100%;
+  }
   .finding-card-header {
     background: var(--spencer-blue);
     color: #fff;
@@ -256,10 +268,9 @@
   .fmg-open { color: #B7770D; font-weight: 600; }
 
   .finding-description {
-    padding: 8pt 10pt;
+    padding: 5pt 10pt;
     font-size: 9pt;
-    line-height: 1.5;
-    border-bottom: 1px solid var(--divider);
+    line-height: 1.35;
     background: var(--bg-alt);
   }
   .fd-label {
@@ -267,7 +278,7 @@
     font-size: 7.5pt;
     text-transform: uppercase;
     color: var(--text-muted);
-    margin-bottom: 3pt;
+    margin-bottom: 2pt;
   }
 
   .resolution-strip {
@@ -279,101 +290,90 @@
   }
   .res-label { font-weight: 700; color: var(--ok-green); margin-right: 4pt; }
 
-  /* page-break-inside: avoid keeps the "EVIDENCE PHOTOS (N)" label glued
-     to its photos — prevents an orphan label at the bottom of one page
-     with the first photo pushed to the next. If the block is too tall
-     to fit on the current page, WeasyPrint moves the whole unit. */
-  .finding-photos { padding: 8pt 10pt; page-break-inside: avoid; }
-  .fp-cell { page-break-inside: avoid; }
-  .fp-label {
-    font-weight: 700;
-    font-size: 7.5pt;
-    text-transform: uppercase;
-    color: var(--text-muted);
-    margin-bottom: 6pt;
+  /* ---------- SI photo grid (on finding detail pages) ----------
+     Each finding detail page = card on top + up to 4 photos in a 2x2
+     grid below. Photos 5+ spill onto overflow pages that are forced
+     to new pages. Cells are fixed-height rectangles with the photo
+     scaled to fit via max-width/max-height — same bulletproof pattern
+     used elsewhere in the template.
+
+     - Card page: cells 70mm tall (leaves room for card above)
+     - Overflow page: cells 115mm tall (uses fuller page budget)
+     - Single-photo finding: one big hero photo via :only-child
+  */
+  .si-photo-grid {
+    margin-top: 8pt;
+    line-height: 0;
+    font-size: 0;
+    width: 100%;
+    box-sizing: border-box;
   }
-  /* The image box auto-sizes to the photo's natural aspect within max
-     constraints — so landscape photos go wide and portraits go tall.
-     Cell wraps the photo+caption and centres horizontally in the card.
-     Removed the old double-border treatment (cell + image both had a
-     frame) — only .fpc-img carries a visible border now. */
-  .fp-row { display: block; text-align: center; }
-  .fp-cell {
+  /* 50% width + internal padding for the gap = cells fill exactly 100%
+     of the grid width. Odd cells push the gap to the right, even cells
+     push the gap to the left, so both outer edges align cleanly with
+     the card above. */
+  .si-photo {
     display: inline-block;
     vertical-align: top;
-    margin: 0 0 12pt 0;
-    text-align: left;
-    font-size: 7.5pt;
-    line-height: 1.3;
-    max-width: 100%;
+    width: 50%;
+    box-sizing: border-box;
+    padding-right: 3pt;
+    margin-bottom: 6pt;
   }
-  .fp-cell:last-child { margin-bottom: 0; }
-  .fpc-img {
-    background: var(--bg-alt);
+  .si-photo:nth-child(even) { padding-right: 0; padding-left: 3pt; }
+  .si-photo:only-child { width: 100%; padding: 0; }
+
+  .si-photo-img {
+    display: block;
     border: 1px solid var(--divider);
+    background: var(--bg-alt);
     position: relative;
-    height: 140mm;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  /* Fixed 140mm container mirrors the appendix pattern — deterministic
-     height regardless of photo orientation ensures the whole finding card
-     (header + metadata + description + photo) fits on one page under
-     page-break-inside: avoid. Photo scales to fit: portrait ~105×140mm,
-     landscape ~186×~140mm. If a future finding overflows (very long
-     description + resolution strip), drop this to 130mm or 120mm. */
-  .fpc-img img {
-    display: block;
-    max-width: 100%;
-    max-height: 100%;
-    object-fit: contain;
-  }
-  .fpc-missing {
-    display: block;
-    padding: 40mm 20mm;
-    font-size: 9pt;
-    line-height: 1.2;
-    color: var(--text-muted);
     text-align: center;
+    height: 70mm;
+    line-height: 0;
+    font-size: 0;
+    overflow: hidden;
   }
-  /* z-index keeps the chips above the image in WeasyPrint's stacking. */
-  .fpc-badge {
+  .si-photo-img img {
+    display: block;
+    margin: 0 auto;
+    max-width: 100%;
+    max-height: 70mm;
+  }
+  .si-photo:only-child .si-photo-img { height: 140mm; }
+  .si-photo:only-child .si-photo-img img { max-height: 140mm; }
+
+  .si-photo-badge {
     position: absolute;
-    top: 6pt;
-    left: 6pt;
+    top: 4pt;
+    left: 4pt;
     background: var(--spencer-blue);
     color: #fff;
-    font-size: 8pt;
-    font-weight: 700;
-    font-family: monospace;
-    padding: 3pt 7pt;
-    border-radius: 2px;
-    line-height: 1.2;
-    z-index: 2;
-  }
-  .fpc-src {
-    position: absolute;
-    top: 6pt;
-    right: 6pt;
-    background: #FDECEA;
-    color: var(--err-red);
-    border: 1px solid var(--err-red);
     font-size: 7pt;
     font-weight: 700;
-    padding: 2pt 6pt;
+    font-family: monospace;
+    padding: 2pt 5pt;
     border-radius: 2px;
     line-height: 1.2;
     z-index: 2;
   }
-  .fpc-caption {
-    padding: 4pt 2pt 0 2pt;
-    font-size: 7.5pt;
-    line-height: 1.3;
-    color: var(--text-muted);
-    text-align: right;
-    font-style: italic;
+
+  /* Overflow pages (photos 5+). Each gets a small header saying
+     "SI48 — continued (photos 5–6 of 6)" then a 2x2 grid with the
+     remaining photos. */
+  .si-overflow-page { page-break-before: always; }
+  .si-overflow-head {
+    font-size: 10pt;
+    font-weight: 700;
+    padding: 6pt 0;
+    margin-bottom: 10pt;
+    border-bottom: 1px solid var(--divider);
+    color: var(--spencer-blue);
   }
+  .si-overflow-page .si-photo-img { height: 115mm; }
+  .si-overflow-page .si-photo-img img { max-height: 115mm; }
+  .si-overflow-page .si-photo:only-child .si-photo-img { height: 215mm; }
+  .si-overflow-page .si-photo:only-child .si-photo-img img { max-height: 215mm; }
 
   /* ---------- Signoff block + close-call note (CS053-specific) ---------- */
   .signoff-block {
@@ -633,7 +633,53 @@
     {% endfor %}
   </tbody>
 </table>
+{% else %}
+<div style="text-align:center;color:var(--ok-green);font-weight:600;padding:14pt 0;">
+  No findings raised during this inspection.
+</div>
+{% endif %}
 
+<div class="closecall-note">Please confirm that all Close Calls identified in this report have been uploaded onto the Close Call System (https://thespencergroup.co.uk/closecall/)</div>
+<div class="signoff-block">
+  <div>
+    <div class="signoff-name">Signed: {{ inspector }}</div>
+    <div class="signoff-hint">Digital signature captured in Dalux Field on {{ insp_date }}</div>
+  </div>
+</div>
+
+<!-- Provenance (design system §9) -->
+<div class="provenance">
+  Generated from Dalux Field &middot; Form ID {{ form_id }} &middot;
+  Form No. {{ form_number }} &middot; Status: {{ status }} &middot; Created {{ created_display }} by {{ creator_name }} &middot; Modified {{ modified_display }} by {{ modifier_name }}
+</div>
+
+{% if all_photos %}
+<div class="section-break"></div>
+<div class="page-header-sm">Photographic evidence (appendix) &mdash; {{ all_photos|length }} photos</div>
+{% for p in all_photos %}
+<div class="photo-cell-full">
+  <div class="pc-full-hdr">
+    <span class="pc-full-no">Photo #{{ p.photo_no }}</span>
+    <span class="pc-full-item">{{ p.item_num }} &mdash; {{ p.item_title }}</span>
+    <span class="pc-src pc-src-{{ p.src }}">{{ 'CAR evidence' if p.src == 'evidence' else 'Inspection' }}</span>
+  </div>
+  <div class="pc-full-img">
+    {% if p.local_src %}<img src="{{ p.local_src }}" alt="Photo #{{ p.photo_no }}"><div class="ph-no">#{{ p.photo_no }}</div>
+    {% else %}<div class="photo-missing-large">Photo #{{ p.photo_no }} &mdash; not downloaded</div>{% endif %}
+  </div>
+  <div class="pc-full-meta">Captured {{ p.created or '—' }}</div>
+</div>
+{% endfor %}
+{% endif %}
+
+{# --- Finding detail pages (one per SI). Each page: detail card at
+   top + up to 4 photos in a 2x2 grid filling the rest of the page.
+   Findings with 5+ photos get overflow pages after the card page —
+   another 2x2 grid on each until all photos are rendered. Each card
+   AND each overflow page start on a new page via page-break-before.
+   Each SI photo also appears in the main appendix earlier so nothing
+   is lost, but here the photos sit alongside their card for context. --- #}
+{% if findings %}
 {% for f in findings %}
 <div class="finding-card">
   <div class="finding-card-header">
@@ -681,66 +727,43 @@
   </div>
   {% endif %}
 
-  {% if f.evidence %}
-  <div class="finding-photos">
-    <div class="fp-label">Evidence photos ({{ f.evidence|length }})</div>
-    <div class="fp-row">
-      {% for e in f.evidence %}
-      <div class="fp-cell">
-        <div class="fpc-img">
-          {% if e.local_src %}
-            <img src="{{ e.local_src }}" alt="Photo #{{ e.photo_no }}">
-          {% else %}
-            <div class="fpc-missing">Photo #{{ e.photo_no }}<br>not downloaded</div>
-          {% endif %}
-          <div class="fpc-badge">#{{ e.photo_no }}</div>
-          <div class="fpc-src">EVIDENCE</div>
-        </div>
-        <div class="fpc-caption">{{ f.number }} &middot; Photo {{ loop.index }} of {{ f.evidence|length }}</div>
-      </div>
-      {% endfor %}
+</div>
+
+{% if f.evidence %}
+{# First 4 photos in a 2x2 grid on the same page as the card. #}
+<div class="si-photo-grid">
+  {% for e in f.evidence[:4] %}
+  <div class="si-photo">
+    <div class="si-photo-img">
+      {% if e.local_src %}<img src="{{ e.local_src }}" alt="Photo #{{ e.photo_no }}">{% endif %}
+      <div class="si-photo-badge">#{{ e.photo_no }}</div>
     </div>
   </div>
-  {% endif %}
+  {% endfor %}
+</div>
 
+{# Overflow pages for photos 5+. One page per chunk of 4. #}
+{% if f.evidence|length > 4 %}
+{% for chunk_start in range(4, f.evidence|length, 4) %}
+<div class="si-overflow-page">
+  <div class="si-overflow-head">
+    {{ f.number }} &mdash; continued (photos {{ chunk_start + 1 }}&ndash;{{ [chunk_start + 4, f.evidence|length]|min }} of {{ f.evidence|length }})
+  </div>
+  <div class="si-photo-grid">
+    {% for e in f.evidence[chunk_start:chunk_start + 4] %}
+    <div class="si-photo">
+      <div class="si-photo-img">
+        {% if e.local_src %}<img src="{{ e.local_src }}" alt="Photo #{{ e.photo_no }}">{% endif %}
+        <div class="si-photo-badge">#{{ e.photo_no }}</div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
 </div>
 {% endfor %}
-{% else %}
-<div style="text-align:center;color:var(--ok-green);font-weight:600;padding:14pt 0;">
-  No findings raised during this inspection.
-</div>
+{% endif %}
 {% endif %}
 
-<div class="closecall-note">Please confirm that all Close Calls identified in this report have been uploaded onto the Close Call System (https://thespencergroup.co.uk/closecall/)</div>
-<div class="signoff-block">
-  <div>
-    <div class="signoff-name">Signed: {{ inspector }}</div>
-    <div class="signoff-hint">Digital signature captured in Dalux Field on {{ insp_date }}</div>
-  </div>
-</div>
-
-<!-- Provenance (design system §9) -->
-<div class="provenance">
-  Generated from Dalux Field &middot; Form ID {{ form_id }} &middot;
-  Form No. {{ form_number }} &middot; Status: {{ status }} &middot; Created {{ created_display }} by {{ creator_name }} &middot; Modified {{ modified_display }} by {{ modifier_name }}
-</div>
-
-{% if all_photos %}
-<div class="section-break"></div>
-<div class="page-header-sm">Photographic evidence (appendix) &mdash; {{ all_photos|length }} photos</div>
-{% for p in all_photos %}
-<div class="photo-cell-full">
-  <div class="pc-full-hdr">
-    <span class="pc-full-no">Photo #{{ p.photo_no }}</span>
-    <span class="pc-full-item">{{ p.item_num }} &mdash; {{ p.item_title }}</span>
-    <span class="pc-src pc-src-{{ p.src }}">{{ 'CAR evidence' if p.src == 'evidence' else 'Inspection' }}</span>
-  </div>
-  <div class="pc-full-img">
-    {% if p.local_src %}<img src="{{ p.local_src }}" alt="Photo #{{ p.photo_no }}"><div class="ph-no">#{{ p.photo_no }}</div>
-    {% else %}<div class="photo-missing-large">Photo #{{ p.photo_no }} &mdash; not downloaded</div>{% endif %}
-  </div>
-  <div class="pc-full-meta">Captured {{ p.created or '—' }}</div>
-</div>
 {% endfor %}
 {% endif %}
 
