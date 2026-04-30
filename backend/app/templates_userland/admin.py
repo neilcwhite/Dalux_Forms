@@ -92,6 +92,7 @@ class _UploadOk(BaseModel):
     valid_from: str
     source: str
     form_display: str
+    has_qr: bool = False
     outcome: str = "registered"
 
 
@@ -100,20 +101,30 @@ async def upload_template(
     request: Request,
     python_file: UploadFile = File(...),
     template_file: UploadFile = File(...),
+    qr_file: Optional[UploadFile] = File(None),
     app_db: Session = Depends(get_app_db),
 ):
     """Validate, persist, and register a new template version. The .py is
     imported in a temp location first; if validation fails nothing is
-    written to the userland volume."""
+    written to the userland volume.
+
+    Optional qr_file (PNG/JPG) is saved alongside the handler in the version
+    folder. The handler can read it via runtime.qr_data_uri(__file__)."""
     py_bytes = await python_file.read()
     j2_bytes = await template_file.read()
     py_sha = hashlib.sha256(py_bytes).hexdigest()
     j2_sha = hashlib.sha256(j2_bytes).hexdigest()
 
+    qr_bytes: Optional[bytes] = None
+    qr_filename: Optional[str] = None
+    if qr_file is not None and qr_file.filename:
+        qr_bytes = await qr_file.read()
+        qr_filename = qr_file.filename
+
     uploader_ip = _client_ip(request)
 
     try:
-        v = template_loader.upload(py_bytes, j2_bytes)
+        v = template_loader.upload(py_bytes, j2_bytes, qr_bytes=qr_bytes, qr_filename=qr_filename)
     except template_loader.UploadError as e:
         # Try to extract form_code from the .py for the audit row, but it
         # might not even be a valid Python file.
@@ -164,6 +175,7 @@ async def upload_template(
         valid_from=v.valid_from.isoformat(),
         source=v.source,
         form_display=v.form_display,
+        has_qr=v.qr_path is not None,
     )
 
 

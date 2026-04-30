@@ -142,6 +142,7 @@ export interface TemplateVersion {
   form_code: string;
   version: number;
   source: TemplateSource;
+  has_qr: boolean;
   valid_from: string;            // ISO date
   dalux_template_name: string;
   form_display: string;
@@ -180,10 +181,12 @@ export async function uploadTemplate(
   pythonFile: File,
   templateFile: File,
   adminToken: string,
-): Promise<{ form_code: string; version: number; valid_from: string; source: string; form_display: string }> {
+  qrFile?: File | null,
+): Promise<{ form_code: string; version: number; valid_from: string; source: string; form_display: string; has_qr: boolean }> {
   const form = new FormData();
   form.append("python_file", pythonFile);
   form.append("template_file", templateFile);
+  if (qrFile) form.append("qr_file", qrFile);
   const { data } = await api.post("/api/admin/templates/upload", form, {
     headers: { "X-Admin-Token": adminToken },
   });

@@ -270,7 +270,7 @@ function TemplatesTab() {
   }
 
   const uploadMutation = useMutation({
-    mutationFn: ({ py, j2 }: { py: File; j2: File }) => uploadTemplate(py, j2, adminToken),
+    mutationFn: ({ py, j2, qr }: { py: File; j2: File; qr?: File | null }) => uploadTemplate(py, j2, adminToken, qr),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-templates"] });
       queryClient.invalidateQueries({ queryKey: ["admin-templates-audit"] });
@@ -311,7 +311,7 @@ function TemplatesTab() {
         uploading={uploadMutation.isPending}
         result={uploadMutation.data}
         error={uploadMutation.error as Error | null}
-        onUpload={(py, j2) => uploadMutation.mutate({ py, j2 })}
+        onUpload={(py, j2, qr) => uploadMutation.mutate({ py, j2, qr })}
         onClear={() => uploadMutation.reset()}
       />
 
@@ -346,15 +346,17 @@ function UploadForm({
   adminToken: string;
   onTokenChange: (v: string) => void;
   uploading: boolean;
-  result?: { form_code: string; version: number; valid_from: string; source: string; form_display: string };
+  result?: { form_code: string; version: number; valid_from: string; source: string; form_display: string; has_qr?: boolean };
   error: Error | null;
-  onUpload: (py: File, j2: File) => void;
+  onUpload: (py: File, j2: File, qr?: File | null) => void;
   onClear: () => void;
 }) {
   const pyRef = useRef<HTMLInputElement>(null);
   const j2Ref = useRef<HTMLInputElement>(null);
+  const qrRef = useRef<HTMLInputElement>(null);
   const [pyFile, setPyFile] = useState<File | null>(null);
   const [j2File, setJ2File] = useState<File | null>(null);
+  const [qrFile, setQrFile] = useState<File | null>(null);
   const [showToken, setShowToken] = useState(false);
 
   // Reset file inputs after a successful upload so the form is ready for next.
@@ -362,8 +364,10 @@ function UploadForm({
     if (result) {
       setPyFile(null);
       setJ2File(null);
+      setQrFile(null);
       if (pyRef.current) pyRef.current.value = "";
       if (j2Ref.current) j2Ref.current.value = "";
+      if (qrRef.current) qrRef.current.value = "";
     }
   }, [result]);
 
@@ -375,11 +379,11 @@ function UploadForm({
       <div className="flex items-baseline justify-between mb-3">
         <h2 className="text-[14px] font-semibold">Upload new template version</h2>
         <span className="text-[11px]" style={{ color: "var(--color-text-faint)" }}>
-          .py + .html.j2 pair, validated and registered live
+          .py + .html.j2 (required) + QR image (optional), validated and registered live
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 mb-3">
+      <div className="grid grid-cols-3 gap-4 mb-3">
         <FileSlot
           label="Python builder (.py)"
           inputRef={pyRef}
@@ -393,6 +397,13 @@ function UploadForm({
           accept=".j2,.html"
           file={j2File}
           onChange={setJ2File}
+        />
+        <FileSlot
+          label="QR image (optional)"
+          inputRef={qrRef}
+          accept=".png,.jpg,.jpeg"
+          file={qrFile}
+          onChange={setQrFile}
         />
       </div>
 
@@ -417,7 +428,7 @@ function UploadForm({
         <Button
           variant="primary"
           disabled={!canSubmit}
-          onClick={() => { if (pyFile && j2File) onUpload(pyFile, j2File); }}
+          onClick={() => { if (pyFile && j2File) onUpload(pyFile, j2File, qrFile); }}
         >
           {uploading ? "Uploading…" : "Upload"}
         </Button>
@@ -429,7 +440,7 @@ function UploadForm({
       {result && (
         <div className="mt-3 p-3 rounded border text-[12.5px]"
              style={{ background: "var(--color-success-50)", color: "var(--color-success-700)", borderColor: "var(--color-success-200)" }}>
-          ✓ Registered <strong>{result.form_code} v{result.version}</strong> ({result.form_display}) — valid from {result.valid_from}.
+          ✓ Registered <strong>{result.form_code} v{result.version}</strong> ({result.form_display}) — valid from {result.valid_from}{result.has_qr ? ", with QR image" : ""}.
         </div>
       )}
       {error && (
@@ -524,7 +535,14 @@ function VersionsTable({
                   <td className="px-3 py-2.5 font-mono font-medium" style={{ color: "var(--color-text)" }}>{v.form_code}</td>
                   <td className="px-3 py-2.5 tabular" style={{ color: "var(--color-text)" }}>v{v.version}</td>
                   <td className="px-3 py-2.5">
-                    {v.source === "builtin" ? <Tag tone="brand">Built-in</Tag> : <Tag tone="info">Uploaded</Tag>}
+                    <span className="inline-flex items-center gap-1.5">
+                      {v.source === "builtin" ? <Tag tone="brand">Built-in</Tag> : <Tag tone="info">Uploaded</Tag>}
+                      {v.has_qr && (
+                        <span title="QR image uploaded with this version">
+                          <Tag tone="neutral">QR</Tag>
+                        </span>
+                      )}
+                    </span>
                   </td>
                   <td className="px-3 py-2.5 tabular" style={{ color: "var(--color-text-muted)" }}>
                     {v.source === "builtin" ? "—" : v.valid_from}

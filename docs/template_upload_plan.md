@@ -79,17 +79,18 @@ backend/data/templates_userland/
     v2/
       cs053.py
       cs053.html.j2
-      _meta.json    { valid_from, uploaded_at, python_sha256, template_sha256, disabled? }
+      qr.png           ← optional, uploaded with the pair
+      _meta.json       { valid_from, uploaded_at, python_sha256, template_sha256, qr_sha256, disabled? }
     v3/
       cs053.py
       cs053.html.j2
-      _meta.json
+      _meta.json       (no QR this version — handler will get None from qr_data_uri())
   cs999/
     v1/
       ...
 ```
 
-The user uploads a flat pair (`cs053.py` + `cs053.html.j2`); the app handles slotting it into the right `vN` folder. Built-in templates live in `backend/app/reports/` as before — they don't appear in this volume.
+The user uploads up to three files (`cs053.py` + `cs053.html.j2` + optional QR); the app handles slotting them into the right `vN` folder. Built-in templates live in `backend/app/reports/` as before — they don't appear in this volume. Each version is independent: a v3 without a QR gets None from the runtime helper even if v2 had one. Re-upload to copy the QR forward.
 
 ## The upload contract
 
@@ -114,8 +115,10 @@ CS208 is the canonical example — its `.py` and `.html.j2` already match this p
 ### What uploaded code can use
 
 - Any Python stdlib
-- Any package already in [backend/requirements.txt](backend/requirements.txt) — currently: `fastapi`, `sqlalchemy`, `pymysql`, `jinja2`, `weasyprint`, `requests`, `pydantic`, `apscheduler`, `httpx`
+- Any package already in [backend/requirements.txt](backend/requirements.txt) — currently: `fastapi`, `sqlalchemy`, `pymysql`, `jinja2`, `weasyprint`, `requests`, `pydantic`, `apscheduler`, `httpx`, `passlib`
 - The `_spencer_design_system.css.j2` Jinja partial via `{% include %}`
+- `runtime.make_env(__file__)` — pre-built Jinja Environment with the right loader paths
+- `runtime.qr_data_uri(__file__)` — returns a `data:image/...;base64,...` URI for the version's uploaded QR image, or None if none was uploaded. Use it in the template via `<img src="{{ qr_data_uri }}">` after passing it through the payload
 - The same DB collation patterns used throughout (always `COLLATE utf8mb4_unicode_ci` on both sides of joins)
 
 ### What uploaded code cannot do

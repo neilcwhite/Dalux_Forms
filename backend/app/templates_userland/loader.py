@@ -74,6 +74,8 @@ class TemplateVersion:
     folder_path: Optional[Path]
     python_sha256: Optional[str]
     template_sha256: Optional[str]
+    qr_path: Optional[Path]      # uploaded QR image (qr.png/qr.jpg) or None
+    qr_sha256: Optional[str]
     module: object              # the imported handler module
 
 
@@ -115,6 +117,8 @@ def _register_builtins() -> None:
             folder_path=None,
             python_sha256=None,
             template_sha256=None,
+            qr_path=None,    # built-ins load their QR via _find_asset() in static/
+            qr_sha256=None,
             module=mod,
         )
         _versions.setdefault(spec["form_code"], []).append(v)
@@ -154,6 +158,18 @@ def _version_sort_key(p: Path) -> int:
     return 0
 
 
+QR_EXTENSIONS = (".png", ".jpg", ".jpeg")
+
+
+def _find_qr_in_folder(folder: Path) -> Optional[Path]:
+    """Look for a qr.png / qr.jpg / qr.jpeg in the version folder."""
+    for ext in QR_EXTENSIONS:
+        candidate = folder / f"qr{ext}"
+        if candidate.exists():
+            return candidate
+    return None
+
+
 def _load_version_from_disk(form_code: str, version_num: int, folder: Path) -> TemplateVersion:
     py_path = folder / f"{form_code}.py"
     j2_path = folder / f"{form_code}.html.j2"
@@ -173,6 +189,8 @@ def _load_version_from_disk(form_code: str, version_num: int, folder: Path) -> T
     uploaded_at_str = meta.get("uploaded_at")
     uploaded_at = datetime.fromisoformat(uploaded_at_str) if uploaded_at_str else None
 
+    qr_path = _find_qr_in_folder(folder)
+
     return TemplateVersion(
         form_code=form_code,
         version=version_num,
@@ -185,6 +203,8 @@ def _load_version_from_disk(form_code: str, version_num: int, folder: Path) -> T
         folder_path=folder,
         python_sha256=meta.get("python_sha256") or _sha256(py_path),
         template_sha256=meta.get("template_sha256") or _sha256(j2_path),
+        qr_path=qr_path,
+        qr_sha256=meta.get("qr_sha256") or (_sha256(qr_path) if qr_path else None),
         module=module,
     )
 
@@ -311,6 +331,7 @@ def serialize_versions() -> list[dict]:
                 "form_code": v.form_code,
                 "version": v.version,
                 "source": v.source,
+                "has_qr": v.qr_path is not None,
                 "valid_from": v.valid_from.isoformat(),
                 "dalux_template_name": v.dalux_template_name,
                 "form_display": v.form_display,
@@ -331,11 +352,29 @@ class UploadError(Exception):
     Caller should record an audit row with outcome='rejected'."""
 
 
-def upload(python_bytes: bytes, template_bytes: bytes) -> TemplateVersion:
+def upload(
+    python_bytes: bytes,
+    template_bytes: bytes,
+    qr_bytes: Optional[bytes] = None,
+    qr_filename: Optional[str] = None,
+) -> TemplateVersion:
     """Validate and register a new version. The form_code, valid_from, and
     dalux_template_name are read from the .py module (after validation
     import). On success, files are persisted to templates_userland/{code}/v{N}/.
+
+    If qr_bytes is provided, also saves the QR image as `qr.<ext>` in the
+    same folder. Extension is derived from qr_filename (.png/.jpg/.jpeg only;
+    other extensions are rejected).
     """
+    qr_ext: Optional[str] = None
+    if qr_bytes is not None:
+        if not qr_filename:
+            raise UploadError("qr_filename required when qr_bytes provided")
+        ext = Path(qr_filename).suffix.lower()
+        if ext not in QR_EXTENSIONS:
+            raise UploadError(f"QR file must be one of {QR_EXTENSIONS}; got {ext!r}")
+        qr_ext = ext
+
     with _lock:
         # 1. Validate import in a temp location first so a broken upload
         #    doesn't pollute the userland folder.
@@ -348,6 +387,10 @@ def upload(python_bytes: bytes, template_bytes: bytes) -> TemplateVersion:
             tmp_j2 = tmp_dir / "candidate.html.j2"
             tmp_py.write_bytes(python_bytes)
             tmp_j2.write_bytes(template_bytes)
+            tmp_qr = None
+            if qr_bytes is not None:
+                tmp_qr = tmp_dir / f"qr{qr_ext}"
+                tmp_qr.write_bytes(qr_bytes)
 
             # Import + validate
             qualname = f"app.templates_userland._tmp_validate_{tmp_dir.name}"
@@ -394,6 +437,15 @@ def upload(python_bytes: bytes, template_bytes: bytes) -> TemplateVersion:
             shutil.move(str(tmp_py), str(target_py))
             shutil.move(str(tmp_j2), str(target_j2))
 
+            qr_sha: Optional[str] = None
+            if tmp_qr is not None and qr_ext is not None:
+                target_qr = target_dir / f"qr{qr_ext}"
+                shutil.move(str(tmp_qr), str(target_qr))
+                qr_sha = _sha256(target_qr)
+            # If a previous version had a QR but this upload didn't, that's
+            # fine — each version is independent. Inherit if you want by
+            # explicitly re-uploading.
+
             py_sha = _sha256(target_py)
             j2_sha = _sha256(target_j2)
             uploaded_at = datetime.utcnow()
@@ -403,6 +455,7 @@ def upload(python_bytes: bytes, template_bytes: bytes) -> TemplateVersion:
                 "uploaded_at": uploaded_at.isoformat(),
                 "python_sha256": py_sha,
                 "template_sha256": j2_sha,
+                "qr_sha256": qr_sha,
                 "disabled": False,
                 "form_display": form_display,
                 "dalux_template_name": dalux_name,
