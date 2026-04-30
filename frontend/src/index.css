@@ -1,16 +1,111 @@
 @import "tailwindcss";
 
-:root {
-  --color-spencer-blue: #233E99;
-  --color-spencer-blue-pale: #EEF1FA;
-  --color-ok-green: #2E7D4F;
-  --color-err-red: #C0392B;
-  --color-na-grey: #8A8A8A;
+/* ============================================================
+   Dalux Report Portal — Design Tokens
+   Tailwind v4 @theme syntax. Light + dark via [data-mode].
+   ============================================================ */
+
+@theme {
+  /* Brand */
+  --color-brand-50:  #EEF2FB;
+  --color-brand-100: #DCE3F5;
+  --color-brand-200: #B7C4EB;
+  --color-brand-300: #8AA0DC;
+  --color-brand-400: #5C7CCB;
+  --color-brand-500: #3A5DBA;
+  --color-brand-600: #233E99;  /* primary Spencer blue */
+  --color-brand-700: #1B3179;
+  --color-brand-800: #14245C;
+  --color-brand-900: #0E1A43;
+
+  /* Status */
+  --color-success-50:  #ECFDF5;
+  --color-success-200: #BBF7D0;
+  --color-success-500: #10B981;
+  --color-success-700: #047857;
+
+  --color-warning-50:  #FFFBEB;
+  --color-warning-200: #FDE68A;
+  --color-warning-500: #F59E0B;
+  --color-warning-700: #B45309;
+
+  --color-danger-50:  #FEF2F2;
+  --color-danger-200: #FECACA;
+  --color-danger-500: #EF4444;
+  --color-danger-700: #B91C1C;
+
+  --color-info-50:  #EFF6FF;
+  --color-info-500: #3B82F6;
+  --color-info-700: #1D4ED8;
+
+  /* Semantic surfaces (light) */
+  --color-surface:        #F7F8FA;
+  --color-surface-raised: #FFFFFF;
+  --color-surface-sunken: #EEF1F5;
+  --color-border:         #E3E7EE;
+  --color-border-strong:  #CBD2DC;
+
+  /* Sidebar — always dark */
+  --color-sidebar:        #0E1A43;
+  --color-sidebar-hover:  #14245C;
+  --color-sidebar-active: #1B3179;
+  --color-sidebar-text:   #C7CFE3;
+  --color-sidebar-text-strong: #FFFFFF;
+
+  /* Text */
+  --color-text:        #1A2233;
+  --color-text-muted:  #5B6577;
+  --color-text-faint:  #8892A6;
+  --color-text-invert: #FFFFFF;
+
+  /* Radii */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  /* Type */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 
-body {
-  margin: 0;
-  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-  color: #1A1A1A;
-  background: #F7F8FA;
+/* Dark mode overrides */
+[data-mode="dark"] {
+  --color-surface:        #0F1320;
+  --color-surface-raised: #161B2C;
+  --color-surface-sunken: #0A0E18;
+  --color-border:         #232A3D;
+  --color-border-strong:  #303852;
+
+  --color-sidebar:        #08111F;
+  --color-sidebar-hover:  #0F1B30;
+  --color-sidebar-active: #15243F;
+
+  --color-text:        #E6EAF2;
+  --color-text-muted:  #9AA3B6;
+  --color-text-faint:  #6A7388;
+
+  --color-success-50:  #052E22;
+  --color-warning-50:  #2A1E04;
+  --color-danger-50:   #2A0E0E;
+  --color-info-50:     #0B1B3A;
+  --color-brand-50:    #15243F;
 }
+
+/* Base */
+html, body, #root {
+  height: 100%;
+}
+body {
+  font-family: var(--font-sans);
+  background: var(--color-surface);
+  color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+/* Scrollbar polish (optional, keeps surfaces clean) */
+* { scrollbar-width: thin; scrollbar-color: var(--color-border-strong) transparent; }
+
+/* Reusable utility for monospace numerics (sos numbers, counts) */
+.tabular { font-variant-numeric: tabular-nums; }
