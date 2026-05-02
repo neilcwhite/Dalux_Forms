@@ -17,6 +17,10 @@ class Settings:
 
     # Teams notifications (Power Automate HTTP trigger)
     NOTIFY_POWER_AUTOMATE_URL = os.getenv("NOTIFY_POWER_AUTOMATE_URL", "")
+    # Second flow URL — pings Neil personally when a closed form has no
+    # custom-report template yet. Different audience to the doc-control
+    # flow above; leave blank to disable the unmapped-template path.
+    NOTIFY_UNMAPPED_POWER_AUTOMATE_URL = os.getenv("NOTIFY_UNMAPPED_POWER_AUTOMATE_URL", "")
     APP_PUBLIC_URL = os.getenv("APP_PUBLIC_URL", "http://localhost:8000")
     NOTIFY_ENABLED = os.getenv("NOTIFY_ENABLED", "false").lower() == "true"
 

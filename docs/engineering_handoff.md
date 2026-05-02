@@ -38,26 +38,31 @@ A FastAPI backend + React frontend that turns Spencer's Dalux form data into bra
    │   │ SQLite app.db    │◀────────────────────────│──▶│ APScheduler  │  │  │
    │   │ - downloads      │                         │   │ (notifications)│  │  │
    │   │ - notifications_sent│                      │   └──────┬───────┘  │  │
+   │   │ - unmapped_template_alerts │                │          │          │  │
    │   │ - hidden_projects│                         │          │          │  │
    │   │ - template_uploads_audit │                 └──────────┼──────────┘  │
    │   │ - approved_users │                                    │             │
    │   └──────────────────┘                                    │             │
    │                                                           ▼             │
    │   ┌─────────────────────┐                          ┌──────────────┐    │
-   │   │ MariaDB (DBHUB)     │◀─── reads ───────────────│ Power Automate│   │
-   │   │ - DLX_2_forms       │                          │ HTTP trigger  │   │
-   │   │ - DLX_2_form_udfs   │                          │   (Teams)     │   │
-   │   │ - DLX_2_projects    │                          └──────────────┘    │
-   │   │ - sheq_sites        │                                              │
-   │   │ - DLX_2_users       │                                              │
-   │   └─────────────────────┘                                              │
+   │   │ MariaDB (DBHUB)     │◀─── reads ───────────────│ render PDF +  │   │
+   │   │ - DLX_2_forms       │                          │ upload to SP  │───┼──▶ SharePoint
+   │   │ - DLX_2_form_udfs   │                          │ (Graph API)   │   │   (01 New Documents)
+   │   │ - DLX_2_projects    │                          └──────┬───────┘    │
+   │   │ - sheq_sites        │                                 │            │
+   │   │ - DLX_2_users       │                                 ▼            │
+   │   └─────────────────────┘                          ┌──────────────┐    │
+   │                                                    │ Power Automate│   │
+   │                                                    │ × 2 flows     │───┼──▶ Teams
+   │                                                    │ (HTTP triggers)│  │   (doc-control + Neil)
+   │                                                    └──────────────┘    │
    └─────────────────────────────────────────────────────────────────────────┘
 ```
 
 **Key facts:**
 - Two databases: **MariaDB** (Dalux + SHEQ data, read-only from this app's perspective) and **SQLite** (everything app-local — auth, audit logs, dedup tables).
-- One scheduled job (Teams notifications) runs in-process via APScheduler.
-- One outbound webhook (Power Automate, for Teams).
+- One scheduled job (Teams notifications) runs in-process via APScheduler. Same tick handles two paths: closed-form notifications and unmapped-template pings.
+- Two outbound webhooks (Power Automate, one per Teams flow) plus Microsoft Graph (SharePoint upload).
 - The app reads but never writes to MariaDB. Writes to SQLite only.
 
 ---
@@ -73,10 +78,15 @@ backend/
     config.py                ← Env-var loaded settings
     database.py              ← SQLAlchemy engines (MariaDB + SQLite)
     models.py                ← SQLite models only — MariaDB is text() queries
-    notifications/           ← APScheduler + Power Automate dispatcher
-      service.py             ← candidate query + dedup + send
+    notifications/           ← APScheduler + render → SharePoint → Teams
+      service.py             ← closed-form path: query + dedup + render + upload + send
+      unmapped.py            ← unmapped-template ping path (per-template-per-day dedup)
       scheduler.py           ← cron wiring
       backfill.py            ← one-shot CLI for first deploy
+      run_now.py             ← manual trigger CLI (--dry-run, --no-teams flags)
+    sharepoint/              ← Microsoft Graph client (token cache + upload)
+      client.py              ← simple PUT (<4 MB) + upload session (>= 4 MB)
+      test_connection.py     ← connectivity smoke-test CLI
     reports/                 ← PDF report builders (CS037, CS053, CS208)
       service.py             ← orchestration: form → handler → WeasyPrint → cache
       cs037.py / cs053.py / cs208.py
@@ -258,8 +268,10 @@ Tracked here so review doesn't surface them as discoveries.
 | **"Soon" placeholders in Sidebar** | Low | Settings + Audit log are forward-looking, not built. Either ship them or remove the entries |
 | **Hardcoded sector colours** | Low | [`charts.tsx` SECTOR_COLORS](frontend/src/components/dashboard/charts.tsx). Six sectors enumerated; new ones get a default grey. Configurable later if needed |
 | **No FastAPI `/docs` (Swagger UI) enabled** | Low | Add `app = FastAPI(docs_url="/docs")` if useful for backend devs. One-line change |
-| **First-run flood prevention is mandatory** | Operational | The notifications backfill must run on first deploy or doc control gets ~30 historical alerts. Documented in deployment_handoff.md Step 6. Hard to make idempotent without losing the bootstrap signal |
-| **No Power Automate retry queue** | Medium | A failed POST is logged with `status='failed'` but not retried in-process. Retried implicitly on next scheduler run. Acceptable while Power Automate is reliable; switch to a proper retry/DLQ pattern if it isn't |
+| **First-run flood prevention is mandatory** | Operational | The closed-form notifications backfill must run on first deploy or doc control gets ~30 historical alerts. Documented in deployment_handoff.md Step 4. The unmapped-template path auto-bootstraps when its table is empty (no separate CLI). Hard to make either idempotent without losing the bootstrap signal |
+| **No Power Automate retry queue** | Medium | A failed POST is logged with `status='failed'` but not retried in-process. Retried implicitly on next scheduler run. SharePoint upload uses `conflictBehavior=replace` so re-upload is safe. Acceptable while both are reliable; switch to a proper retry/DLQ pattern if not |
+| **SharePoint auth piggybacks on n8n's Azure AD app reg** | Medium | Stop-gap. IT to issue a dedicated Dalux Forms registration with `Sites.Selected` scoped to `01 New Documents` only. Until then, our blast radius is whatever n8n's reg has access to (currently SharePoint write across the tenant) |
+| **Power Automate HTTP trigger is now Premium** | Medium | Microsoft reclassified the trigger as Premium during 2024–2025. Existing flows still run; admin needs to take ownership of (or assign per-flow Premium plans to) the two flows before enforcement. Long-term escape: replace Power Automate with direct Graph API posting from FastAPI — same Azure AD app reg, ~half-day work |
 | **Frontend has no global error boundary** | Low | A single render error blanks the page (we hit this once, fixed in [SitesPage hooks-rules fix](https://github.com/neilcwhite/Dalux_Forms/commit/248dfa2)). Add an ErrorBoundary at App level for resilience |
 
 ---
@@ -269,11 +281,12 @@ Tracked here so review doesn't surface them as discoveries.
 ### First deployment
 
 1. Clone repo to the Docker host
-2. Create `backend/.env` from the template in [`docs/deployment_handoff.md`](docs/deployment_handoff.md) Step 2 (DB creds, Dalux API key, Power Automate URL, ADMIN_UPLOAD_TOKEN, INITIAL_ADMIN_EMAILS, INITIAL_ADMIN_PASSWORD)
+2. Create `backend/.env` from the template in [`docs/deployment_handoff.md`](docs/deployment_handoff.md) Step 2 (DB creds, Dalux API key, Power Automate URL, the six SHAREPOINT_* vars + folder view URL, ADMIN_UPLOAD_TOKEN, INITIAL_ADMIN_EMAILS, INITIAL_ADMIN_PASSWORD)
 3. `docker-compose build && docker-compose up -d`
-4. **Run notification backfill:** `docker-compose exec backend python -m app.notifications.backfill` — **this is mandatory** or the Teams channel gets flooded with historical-form alerts on the first scheduler run
-5. Set `NOTIFY_ENABLED=true` in `.env`, `docker-compose restart backend`
-6. Log in as the bootstrap admin, change password via TopBar → user menu → Change password
+4. **Verify SharePoint connectivity:** `docker-compose exec backend python -m app.sharepoint.test_connection` — expect a PASS with a SharePoint URL printed. If it fails, the closed-form pipeline is broken before the Teams card; diagnose against the helpful error codes in the test docstring before continuing
+5. **Run notification backfill:** `docker-compose exec backend python -m app.notifications.backfill` — **this is mandatory** or the Teams channel gets flooded with historical-form alerts on the first scheduler run. The unmapped-template path auto-bootstraps on first scheduler run; no separate CLI
+6. Set `NOTIFY_ENABLED=true` in `.env`, `docker-compose restart backend`
+7. Log in as the bootstrap admin, change password via TopBar → user menu → Change password
 
 ### Backups (priority order)
 

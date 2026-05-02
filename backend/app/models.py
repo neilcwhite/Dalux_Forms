@@ -1,5 +1,5 @@
 """SQLAlchemy models for local app state (SQLite)."""
-from sqlalchemy import Column, Integer, String, DateTime, Index, UniqueConstraint
+from sqlalchemy import Column, Integer, String, DateTime, Date, Index, UniqueConstraint
 from sqlalchemy.sql import func
 from app.database import AppBase
 
@@ -46,6 +46,45 @@ class NotificationSent(AppBase):
     __table_args__ = (
         UniqueConstraint("form_id", "form_modified_at", name="uq_notifications_form_modified"),
         Index("ix_notifications_form", "form_id", "form_modified_at"),
+    )
+
+
+class UnmappedTemplateAlert(AppBase):
+    """One row per ping for a closed form whose template_name is NOT in
+    the custom-report registry — i.e. a Dalux form type Neil hasn't built
+    a builder for yet.
+
+    Dedup is (template_name, last_close_date): we ping when a form for
+    that template closes on a date we haven't already pinged for. So an
+    untouched 21-form backlog stays silent; a 22nd close on a new day
+    triggers a fresh card with the current count.
+
+    First-run flood protection: if this table is empty when the run
+    starts, every candidate is recorded as `status='bootstrap'` and no
+    cards go out — that ratchets the dedup floor to "now" so subsequent
+    activity drives real pings.
+    """
+    __tablename__ = "unmapped_template_alerts"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    template_name = Column(String(255), nullable=False, index=True)
+    last_close_date = Column(Date, nullable=False,
+                             comment="MAX(modified::date) for this template at ping time")
+    closed_count_at_ping = Column(Integer, nullable=True)
+    most_recent_form_id = Column(String(50), nullable=True)
+    most_recent_form_number = Column(String(120), nullable=True)
+    most_recent_close_at = Column(DateTime, nullable=True)
+    most_recent_site = Column(String(255), nullable=True)
+    most_recent_creator = Column(String(255), nullable=True)
+    status = Column(String(16), nullable=False, default="sent",
+                    comment="'sent' | 'failed' | 'bootstrap'")
+    alerted_at = Column(DateTime, server_default=func.now(), nullable=False)
+    http_status = Column(Integer, nullable=True)
+    error_message = Column(String(500), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("template_name", "last_close_date",
+                         name="uq_unmapped_template_close_date"),
     )
 
 

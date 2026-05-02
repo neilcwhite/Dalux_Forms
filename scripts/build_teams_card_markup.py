@@ -1,17 +1,18 @@
-"""Generates the Power Automate Adaptive Card JSON + trigger schema.
+"""Generates Power Automate Adaptive Card JSON + trigger schema for the
+two notification flows used by Dalux Forms.
 
 Run:
-    cd backend
-    ../venv/Scripts/python.exe ../scripts/build_teams_card_markup.py
+    backend/venv/Scripts/python.exe scripts/build_teams_card_markup.py
 
-Outputs two files into docs/teams_card/:
-  - card_body.json       — paste into the flow's "Post Adaptive Card"
-                            action's `Adaptive Card` field
-  - trigger_schema.json  — paste into the flow's HTTP trigger schema
+Outputs into docs/teams_card/:
+  - card_body.json            — closed-form notification card body
+  - trigger_schema.json       — closed-form trigger schema
+  - unmapped_card_body.json   — unmapped-template ping card body
+  - unmapped_trigger_schema.json — unmapped-template trigger schema
 
-The card embeds the Spencer + Dalux marks as base64 data URIs so there's
-no logo-hosting dependency. Re-run this script whenever the logos or
-field set changes.
+Re-run whenever fields or layout change. Both cards lean on Teams' built-in
+accent style for theme-safety; logos were tried but stretched/clipped in
+dark mode and there is no theme-aware image support.
 """
 from __future__ import annotations
 
@@ -139,3 +140,120 @@ card = {
 
 print(f"trigger_schema.json: {(OUT_DIR / 'trigger_schema.json').stat().st_size:,} bytes")
 print(f"card_body.json:      {(OUT_DIR / 'card_body.json').stat().st_size:,} bytes")
+
+
+# ---------------------------------------------------------------------------
+# Second flow — unmapped-template ping. Personal chat to Neil. No PDF, so
+# no Download/Open Folder buttons; the card is purely informational.
+# ---------------------------------------------------------------------------
+
+unmapped_trigger_schema = {
+    "type": "object",
+    "properties": {
+        "template_name": {"type": "string"},
+        "closed_count": {"type": "integer"},
+        "last_close_date": {"type": "string"},
+        "last_close_label": {"type": "string"},
+        "most_recent_form_id": {"type": "string"},
+        "most_recent_form_number": {"type": "string"},
+        "most_recent_close_at": {"type": "string"},
+        "most_recent_close_label": {"type": "string"},
+        "most_recent_site": {"type": "string"},
+        "most_recent_creator": {"type": "string"},
+        "most_recent_creator_email": {"type": "string"},
+    },
+}
+
+unmapped_card = {
+    "type": "AdaptiveCard",
+    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+    "version": "1.4",
+    "body": [
+        {
+            "type": "Container",
+            "style": "accent",
+            "bleed": True,
+            "items": [
+                {
+                    "type": "TextBlock",
+                    "text": "New form template needs a builder",
+                    "weight": "Bolder",
+                    "size": "Large",
+                    "wrap": True,
+                },
+                {
+                    "type": "TextBlock",
+                    "text": "@{triggerBody()?['template_name']}",
+                    "isSubtle": True,
+                    "spacing": "None",
+                    "wrap": True,
+                },
+            ],
+        },
+        {
+            "type": "ColumnSet",
+            "spacing": "Medium",
+            "columns": [
+                {
+                    "type": "Column",
+                    "width": "auto",
+                    "items": [
+                        {
+                            "type": "TextBlock",
+                            "text": "@{triggerBody()?['closed_count']}",
+                            "size": "ExtraLarge",
+                            "weight": "Bolder",
+                            "spacing": "None",
+                        }
+                    ],
+                },
+                {
+                    "type": "Column",
+                    "width": "stretch",
+                    "verticalContentAlignment": "Center",
+                    "items": [
+                        {
+                            "type": "TextBlock",
+                            "text": "closed forms",
+                            "wrap": True,
+                            "spacing": "None",
+                        },
+                        {
+                            "type": "TextBlock",
+                            "text": "Latest close: @{triggerBody()?['last_close_label']}",
+                            "isSubtle": True,
+                            "wrap": True,
+                            "spacing": "None",
+                        },
+                    ],
+                },
+            ],
+        },
+        {
+            "type": "TextBlock",
+            "text": "Most recent example",
+            "weight": "Bolder",
+            "spacing": "Medium",
+        },
+        {
+            "type": "FactSet",
+            "spacing": "Small",
+            "facts": [
+                {"title": "Form No.",  "value": "@{triggerBody()?['most_recent_form_number']}"},
+                {"title": "Site",      "value": "@{triggerBody()?['most_recent_site']}"},
+                {"title": "Closed",    "value": "@{triggerBody()?['most_recent_close_label']}"},
+                {"title": "Raised by", "value": "@{triggerBody()?['most_recent_creator']}"},
+                {"title": "Form ID",   "value": "@{triggerBody()?['most_recent_form_id']}"},
+            ],
+        },
+    ],
+}
+
+(OUT_DIR / "unmapped_trigger_schema.json").write_text(
+    json.dumps(unmapped_trigger_schema, indent=2), encoding="utf-8"
+)
+(OUT_DIR / "unmapped_card_body.json").write_text(
+    json.dumps(unmapped_card, indent=2), encoding="utf-8"
+)
+print(f"unmapped_trigger_schema.json: {(OUT_DIR / 'unmapped_trigger_schema.json').stat().st_size:,} bytes")
+print(f"unmapped_card_body.json:      {(OUT_DIR / 'unmapped_card_body.json').stat().st_size:,} bytes")

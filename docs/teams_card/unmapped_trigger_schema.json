@@ -1,0 +1,38 @@
+{
+  "type": "object",
+  "properties": {
+    "template_name": {
+      "type": "string"
+    },
+    "closed_count": {
+      "type": "integer"
+    },
+    "last_close_date": {
+      "type": "string"
+    },
+    "last_close_label": {
+      "type": "string"
+    },
+    "most_recent_form_id": {
+      "type": "string"
+    },
+    "most_recent_form_number": {
+      "type": "string"
+    },
+    "most_recent_close_at": {
+      "type": "string"
+    },
+    "most_recent_close_label": {
+      "type": "string"
+    },
+    "most_recent_site": {
+      "type": "string"
+    },
+    "most_recent_creator": {
+      "type": "string"
+    },
+    "most_recent_creator_email": {
+      "type": "string"
+    }
+  }
+}

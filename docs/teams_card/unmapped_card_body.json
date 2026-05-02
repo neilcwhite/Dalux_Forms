@@ -1,0 +1,99 @@
+{
+  "type": "AdaptiveCard",
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "version": "1.4",
+  "body": [
+    {
+      "type": "Container",
+      "style": "accent",
+      "bleed": true,
+      "items": [
+        {
+          "type": "TextBlock",
+          "text": "New form template needs a builder",
+          "weight": "Bolder",
+          "size": "Large",
+          "wrap": true
+        },
+        {
+          "type": "TextBlock",
+          "text": "@{triggerBody()?['template_name']}",
+          "isSubtle": true,
+          "spacing": "None",
+          "wrap": true
+        }
+      ]
+    },
+    {
+      "type": "ColumnSet",
+      "spacing": "Medium",
+      "columns": [
+        {
+          "type": "Column",
+          "width": "auto",
+          "items": [
+            {
+              "type": "TextBlock",
+              "text": "@{triggerBody()?['closed_count']}",
+              "size": "ExtraLarge",
+              "weight": "Bolder",
+              "spacing": "None"
+            }
+          ]
+        },
+        {
+          "type": "Column",
+          "width": "stretch",
+          "verticalContentAlignment": "Center",
+          "items": [
+            {
+              "type": "TextBlock",
+              "text": "closed forms",
+              "wrap": true,
+              "spacing": "None"
+            },
+            {
+              "type": "TextBlock",
+              "text": "Latest close: @{triggerBody()?['last_close_label']}",
+              "isSubtle": true,
+              "wrap": true,
+              "spacing": "None"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "TextBlock",
+      "text": "Most recent example",
+      "weight": "Bolder",
+      "spacing": "Medium"
+    },
+    {
+      "type": "FactSet",
+      "spacing": "Small",
+      "facts": [
+        {
+          "title": "Form No.",
+          "value": "@{triggerBody()?['most_recent_form_number']}"
+        },
+        {
+          "title": "Site",
+          "value": "@{triggerBody()?['most_recent_site']}"
+        },
+        {
+          "title": "Closed",
+          "value": "@{triggerBody()?['most_recent_close_label']}"
+        },
+        {
+          "title": "Raised by",
+          "value": "@{triggerBody()?['most_recent_creator']}"
+        },
+        {
+          "title": "Form ID",
+          "value": "@{triggerBody()?['most_recent_form_id']}"
+        }
+      ]
+    }
+  ]
+}

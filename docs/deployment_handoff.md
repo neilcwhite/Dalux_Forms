@@ -21,6 +21,9 @@ Collect / decide these once, up front. Each maps to a `.env` variable in Step 2.
 | **APP_PUBLIC_URL** | Your decision. Whatever URL Spencer staff will type into a browser to reach the app, e.g. `http://dalux-forms.cspencerltd.co.uk` (set up internal DNS) or `http://<server-ip>` (no DNS). It's embedded in the "Download PDF" buttons inside Teams notifications, so it must be reachable from a workstation on VPN. |
 | **ADMIN_UPLOAD_TOKEN** | You generate it. Run `openssl rand -hex 32` (or equivalent) and store it in your normal secrets manager. Share with Neil so he can use the template-upload admin UI. |
 | **NOTIFY_POWER_AUTOMATE_URL** | Neil sends this via the company password manager (it's the SAS-signed URL of an existing Power Automate flow he built). Alternatively, you can build your own flow — see §"What you need from Neil" → "Power Automate flow (alternative: build your own)" below. |
+| **NOTIFY_UNMAPPED_POWER_AUTOMATE_URL** | Second Power Automate flow URL — pings Neil personally for closed forms whose template type doesn't have a custom-report builder yet. Can be left blank (the path silently no-ops) until Neil's flow is ready. He'll send it via password manager when built. |
+| **SHAREPOINT_TENANT_ID, SHAREPOINT_CLIENT_ID, SHAREPOINT_CLIENT_SECRET** | Closed forms now auto-PDF and upload to a SharePoint folder; the Teams card links to the SharePoint URL instead of back to this app. Reuses the **existing n8n Azure AD app registration** as a stop-gap. Get the values from the same n8n credential store that already has SharePoint write access. Long-term we'll issue a dedicated Dalux Forms registration with `Sites.Selected` scoped to the destination folder — not blocking this deploy. |
+| **SHAREPOINT_HOSTNAME, SHAREPOINT_SITE_PATH, SHAREPOINT_FOLDER_PATH, SHAREPOINT_FOLDER_VIEW_URL** | Destination details for the auto-uploaded PDFs. Defaults below point at the existing `DALUXSetup-DaluxFormNotifications` site / `01 New Documents` folder. The folder must already exist; the app does not create it. The view URL is a browser URL (paste from a logged-in browser session at the folder) — used for the "Open Folder" button on Teams cards. |
 
 **That's the full list.** Everything else (`INITIAL_ADMIN_EMAILS`, `INITIAL_ADMIN_PASSWORD`, etc.) is pre-filled with sensible defaults below.
 
@@ -43,6 +46,8 @@ If you'd rather build your own flow (e.g. you want it owned by an IT service acc
 - Outbound HTTPS to:
   - `https://node2.field.dalux.com` (Dalux API — photo downloads)
   - `https://*.api.powerplatform.com` (Power Automate webhook for Teams notifications — can be locked down to the specific subdomain in `NOTIFY_POWER_AUTOMATE_URL` once known)
+  - `https://login.microsoftonline.com` (Azure AD token endpoint for SharePoint Graph auth)
+  - `https://graph.microsoft.com` (Graph API — SharePoint site lookup + PDF upload)
 - One TCP port chosen for the frontend (default 80 in `docker-compose.yml`; change the `ports:` mapping if 80 is taken)
 
 ---
@@ -85,10 +90,27 @@ DALUX_BASE_URL=https://node2.field.dalux.com/service/api
 APP_NAME=Dalux Report Portal
 DEBUG=false
 
-# Teams notifications
+# Teams notifications — closed-form flow (doc-control channel)
 NOTIFY_POWER_AUTOMATE_URL=<URL Neil sent you via password manager, OR your own flow URL — see §Power Automate alternative>
 APP_PUBLIC_URL=<the URL Spencer staff will reach the app at, e.g. http://dalux-forms.cspencerltd.co.uk>
 NOTIFY_ENABLED=false   # leave false until after Step 4 (bootstrap)
+
+# Teams notifications — unmapped-template flow (Neil's personal chat).
+# Leave blank to skip; the path silently no-ops. Neil will send the URL
+# via password manager once his second Power Automate flow is approved.
+NOTIFY_UNMAPPED_POWER_AUTOMATE_URL=
+
+# SharePoint upload (closed-form PDFs auto-land here; Teams card links to
+# the file in SharePoint instead of round-tripping through this app).
+# Auth via the existing n8n Azure AD app registration as a stop-gap.
+SHAREPOINT_TENANT_ID=<from n8n Azure AD app reg>
+SHAREPOINT_CLIENT_ID=<from n8n Azure AD app reg>
+SHAREPOINT_CLIENT_SECRET=<from n8n Azure AD app reg>
+SHAREPOINT_HOSTNAME=spencergrouphull.sharepoint.com
+SHAREPOINT_SITE_PATH=/sites/DALUXSetup-DaluxFormNotifications
+SHAREPOINT_FOLDER_PATH=/01 New Documents
+SHAREPOINT_FOLDER_VIEW_URL=<paste from a browser logged into SharePoint at the folder; used for "Open Folder" button>
+
 
 # Template upload feature (see Step 6 below for the security model)
 ADMIN_UPLOAD_TOKEN=<the strong random string you generated with `openssl rand -hex 32`>
@@ -142,6 +164,8 @@ docker-compose exec backend python -m app.notifications.backfill
 Expected output: `bootstrap complete: N rows inserted, 0 skipped as duplicates` where N is ~30–50.
 
 This marks every currently-closed form as "already notified" so notifications only fire for forms that close **after** this moment.
+
+> **Note on the unmapped-template path:** the second notification flow (pings to Neil for closed forms with no custom-report builder yet) auto-bootstraps when its table is empty on first scheduler run. **No separate CLI step.** First run records every existing unmapped template as `'bootstrap'` and sends nothing.
 
 ---
 

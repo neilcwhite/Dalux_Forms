@@ -341,6 +341,11 @@ def run_once(mdb: Session, adb: Session) -> dict:
                 c.form_code, c.form_id, error,
             )
 
+    # Same tick also handles the unmapped-template ping path (different
+    # audience, different dedup, but the cron rhythm is shared).
+    from app.notifications import unmapped as unmapped_mod
+    unmapped_result = unmapped_mod.run_unmapped_once(mdb, adb)
+
     return {
         "enabled": True,
         "checked": len(candidates),
@@ -349,6 +354,7 @@ def run_once(mdb: Session, adb: Session) -> dict:
         "skipped_no_url": skipped_no_url,
         "render_failed": render_failed,
         "upload_failed": upload_failed,
+        "unmapped": unmapped_result,
     }
 
 

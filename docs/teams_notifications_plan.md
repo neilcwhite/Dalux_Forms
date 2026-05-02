@@ -16,12 +16,75 @@
 | 2026-04-21 | Power Automate flow created (workflow id `235d34887424418c...`); test card landed in doc-control channel | ✅ Done |
 | 2026-04-21 | Dev bootstrap run: 32 existing closed forms marked `bootstrap`; dedup confirmed (post-bootstrap candidates = 0) | ✅ Done |
 | 2026-04-21 | Dev `NOTIFY_ENABLED=true` | ✅ Done |
-| — | **Prod deploy**: set `NOTIFY_POWER_AUTOMATE_URL`, `APP_PUBLIC_URL=<real https URL>`, leave `NOTIFY_ENABLED=false` initially | ⬜ Not started |
-| — | **Prod bootstrap**: run `python -m app.notifications.backfill` on prod container BEFORE enabling | ⬜ Not started |
+| 2026-05-02 | **Pivot — closed forms now auto-render to SharePoint**; Teams card links to the SharePoint URL instead of `/api/forms/{id}/download`. Doc control no longer needs network access to the FastAPI app. See §"Closed-form pipeline (rev 2)" below | ✅ Done |
+| 2026-05-02 | `app/sharepoint/{client.py, test_connection.py}` — Graph API token cache + simple/session upload + connectivity-test CLI | ✅ Done |
+| 2026-05-02 | Six new env vars (`SHAREPOINT_TENANT_ID`, `SHAREPOINT_CLIENT_ID`, `SHAREPOINT_CLIENT_SECRET`, `SHAREPOINT_HOSTNAME`, `SHAREPOINT_SITE_PATH`, `SHAREPOINT_FOLDER_PATH`) — auth via the n8n Azure AD app reg as a stop-gap | ✅ Done |
+| 2026-05-02 | `notifications_sent.sharepoint_url` column + `migrate_app_db()` helper for idempotent SQLite ALTER TABLE | ✅ Done |
+| 2026-05-02 | `run_once()` now: render PDF inline → upload to SharePoint → POST to Power Automate. Failures recorded with offending step (`pdf-render` / `sharepoint`) | ✅ Done |
+| 2026-05-02 | `run_now` CLI gained `--dry-run` (candidates only, no DB writes) and `--no-teams` (render+upload, skip Teams POST) flags | ✅ Done |
+| 2026-05-02 | End-to-end smoke test on form `S440539875473623040` (FRB175(2)_61) — PDF rendered, uploaded to SP, Teams card landed in channel with working SharePoint link | ✅ Done |
+| 2026-05-02 | Card v2: added "Open Folder" action (alongside per-file "Download PDF"); creator/created-date fields surfaced; logos tried as base64 then dropped (no theme-aware images in Adaptive Cards) | ✅ Done |
+| 2026-05-02 | New env var `SHAREPOINT_FOLDER_VIEW_URL` (browser URL for the folder, can't be derived without doc-library GUID/viewid) | ✅ Done |
+| 2026-05-02 | Power Automate licensing change — Microsoft now flags HTTP-triggered flows as Premium. Working as warning today; admin to take ownership before enforcement | ⚠️ Action pending IT |
+| 2026-05-02 | **Second notification path — unmapped-template pings to Neil personally.** Sees closed forms whose `template_name` isn't in the custom-report registry, so Neil knows what builders to prioritise. See §"Unmapped-template path" below | ✅ Built, awaiting flow |
+| 2026-05-02 | `app/notifications/unmapped.py` — detect/dedup/send/record; dedup keyed on (template_name, last_close_date) so a stable backlog stays silent until a new day brings new closes | ✅ Done |
+| 2026-05-02 | `UnmappedTemplateAlert` model + bootstrap-when-empty heuristic. Smoke-tested: 75 unmapped templates seeded as `bootstrap` on first run, second run = 0 sent | ✅ Done |
+| 2026-05-02 | New env var `NOTIFY_UNMAPPED_POWER_AUTOMATE_URL`; new card markup files `docs/teams_card/unmapped_*.json` | ✅ Done |
+| — | **Build second Power Automate flow** for unmapped-template path (posts to Neil's personal Flow Bot chat). Blocked by Premium licence — pending IT | 🚧 Blocked by Premium |
+| — | **Prod deploy**: set `NOTIFY_POWER_AUTOMATE_URL`, `APP_PUBLIC_URL=<real https URL>`, all six `SHAREPOINT_*` vars, `SHAREPOINT_FOLDER_VIEW_URL`, `NOTIFY_UNMAPPED_POWER_AUTOMATE_URL`. Leave `NOTIFY_ENABLED=false` initially | ⬜ Not started |
+| — | **Prod bootstrap**: run `python -m app.notifications.backfill` on prod container BEFORE enabling. Unmapped path auto-bootstraps when its table is empty — no separate CLI needed | ⬜ Not started |
 | — | Prod `NOTIFY_ENABLED=true` + restart | ⬜ Not started |
 | — | Observe first real notification fire (wait for a form to close + next :30 run) | ⬜ Not started |
 
 _Claude: update this table as work lands — mark status, add date, note surprises or deviations from the plan below._
+
+---
+
+## Closed-form pipeline (rev 2) — SharePoint instead of app download
+
+Original plan had Teams card linking to `/api/forms/{id}/download` on the FastAPI app. **Pivoted on 2026-05-02** because doc control wanted PDFs accessible without VPN access to the portal.
+
+Now: when the scheduler picks up a closed-form candidate, the same tick:
+
+1. Renders the PDF inline (reuses `reports.service.generate_report` — same code path as the user-clicked download, hits the cache so re-renders are free).
+2. Uploads to SharePoint via Graph (`app/sharepoint/client.py` — client_credentials flow against the n8n Azure AD app reg, simple PUT under 4 MB / upload-session above).
+3. Records the SharePoint webUrl on `notifications_sent.sharepoint_url`.
+4. POSTs the Teams card payload with that webUrl as `download_url`. Card key kept as `download_url` so the Power Automate flow's existing binding still works — only the URL value changed.
+
+**Why this is safer than the original:**
+- Doc control reach the PDF via SharePoint's normal SSO; no special VPN route needed for the FastAPI app.
+- SharePoint becomes the durable archive — even if the app is down, the file is there.
+- One pipeline, one card, no fork — all closed forms land in `01 New Documents` with the standard naming convention.
+
+**Failure recording.** If the PDF render fails or SharePoint upload fails, the row is recorded with `status='failed'` and `error_message` prefixed by the offending step — `pdf-render: …`, `sharepoint: …`. Failed rows don't block dedup (they still re-fire on the next scheduler tick), so transient errors self-heal.
+
+**Stop-gap auth note.** SharePoint upload currently uses the n8n Azure AD app registration (the same one n8n uses to read SharePoint lists into MariaDB). IT to issue a dedicated Dalux Forms reg with `Sites.Selected` scoped just to `01 New Documents` later.
+
+**Power Automate licensing wrinkle.** Microsoft reclassified the *When a HTTP request is received* trigger as Premium during 2024–2025. Existing flows still run for now; the admin needs to take ownership of (or assign a per-flow Premium plan to) both flows before enforcement. Long-term escape hatch: replace Power Automate with direct Microsoft Graph posting from FastAPI — same Azure AD app reg, ~half-day of work.
+
+---
+
+## Unmapped-template path — second notification flow
+
+**Trigger.** Closed form whose `template_name` is **not** in the custom-report registry (`TEMPLATES_WITH_CUSTOM_REPORT`). I.e. a Dalux form type that doesn't yet have a custom builder.
+
+**Audience.** Neil personally. Posts to his Flow Bot chat, not the doc-control channel — the signal is "I need to build a builder for X", not a doc-control workflow.
+
+**Dedup rule.** Per `(template_name, last_close_date)`, where `last_close_date = MAX(modified::date)` for unmapped forms of that template. So:
+- Stable backlog of 21 closes from last month → silent.
+- 22nd close arrives today → today > last_close_date → ping.
+- Same-day additional close → no extra ping (dedup matches).
+- Tomorrow's close → new date → ping again.
+
+At most one ping per template per day-of-latest-close. The card carries the running count + the most-recent example (form number, site, raised-by) so Neil can prioritise.
+
+**Bootstrap.** The first run with an empty `unmapped_template_alerts` table records every current unmapped template as `status='bootstrap'` and sends nothing. Floors the dedup at "now" for each template so subsequent activity drives real pings. Verified on 2026-05-02 — 75 templates seeded silently, second run = 0 sent.
+
+**Card content.** Adaptive Card with header "New form template needs a builder", template_name as subtitle, then a count block + facts block with most-recent example. No actions — Neil clicks through to Dalux himself.
+
+**Files:** `app/notifications/unmapped.py`, `models.UnmappedTemplateAlert`, [docs/teams_card/unmapped_card_body.json](teams_card/unmapped_card_body.json), [docs/teams_card/unmapped_trigger_schema.json](teams_card/unmapped_trigger_schema.json).
+
+**Awaiting:** the second Power Automate flow itself, blocked behind the Premium licence pending IT.
 
 ---
 
