@@ -16,11 +16,18 @@ For every new Spencer form template, produce **two required files plus one optio
 |---|---|---|
 | `<form_code>.py` | ✅ | Python builder — pulls form data from the DB and shapes it for rendering |
 | `<form_code>.html.j2` | ✅ | Jinja2 template — the visual layout, references CSS classes from the Spencer design system |
-| `<form_code>_qr.png` (or `.jpg`) | optional | Page-corner QR code image to embed in the report header |
+| QR image | optional | Page-corner QR code image to embed in the report header. Any `.png` / `.jpg` / `.jpeg`. The portal renames it to `qr.<ext>` on save — you don't need to match a specific filename |
 
-**`<form_code>` rules:** lowercase letters, digits, underscores. Convention is `cs<NNN>` matching Spencer's internal form-code register (e.g. `cs053`, `cs208`, `cs417`). The user uploading will tell you which code to use.
+**`<form_code>` rules — STRICT:** ASCII letters, digits, underscores **only**. No parentheses, no hyphens, no spaces. Use uppercase by convention (`CS053`, `CS208`, `CS175_FRB`).
 
-**File names:** the user uploads three flat files; the portal automatically slots them into a versioned folder (`templates_userland/<form_code>/v<N>/`). You do not need to think about versions — the portal increments them.
+- Good: `CS053`, `CS208`, `CS175_FRB`, `WCC_QA12`
+- Bad: `CS175(FRB)`, `CS-053`, `cs 053`, `CS053-v2`
+
+This rule matters because the portal renames your `.py` and `.html.j2` to `<FORM_CODE>.py` / `<FORM_CODE>.html.j2` on save. Special characters in filenames cause path-resolution problems on disk + in URL routing.
+
+**Outgoing filenames you produce:** anything sensible — the portal renames everything on upload. The `<form_code>.py`/`<form_code>.html.j2` naming above is recommended only because it matches what the portal does anyway.
+
+**Versioning:** the portal slots your three files into `templates_userland/<form_code>/v<N>/` and auto-increments `<N>`. You don't think about versions.
 
 ---
 
@@ -82,22 +89,34 @@ def build_filename(db, form_meta) -> str:
 
 ## 3. Runtime helpers available to your code
 
-Two helpers are provided by the host. Import them at the top of your `.py`:
+Three helpers are provided by the host. **Import them; don't roll your own.** This is the most common mistake first-time templates make — they copy `Environment(loader=FileSystemLoader(...))` from the built-in CS053/CS208 source code, which works for built-ins (they have a nested `templates/` subfolder) but breaks for uploaded handlers (they don't).
 
 ```python
-from app.templates_userland.runtime import make_env, qr_data_uri
+from app.templates_userland.runtime import (
+    make_env,
+    qr_data_uri,
+    spencer_logo_data_uri,
+)
 
-# Module-level Jinja environment, pre-configured to:
-#  - Find your <form_code>.html.j2 in the same folder as this .py
-#  - Find the shared `_spencer_design_system.css.j2` partial for {% include %}
+# Module-level Jinja environment, pre-configured to find:
+#  - Your <FORM_CODE>.html.j2 in the same folder as this .py
+#  - The shared `_spencer_design_system.css.j2` partial (for {% include %})
 _env = make_env(__file__)
 
-# Returns a `data:image/...;base64,...` URI for the QR image you uploaded
-# alongside this template, or None if no QR was uploaded for this version.
-_qr = qr_data_uri(__file__)
+# At render time inside build_payload:
+qr   = qr_data_uri(__file__)        # data: URI of the QR you uploaded, or None
+logo = spencer_logo_data_uri()       # data: URI of the shared Spencer logo
+
+# In render_html, the template filename MUST match FORM_CODE:
+def render_html(payload):
+    return _env.get_template(f"{FORM_CODE}.html.j2").render(**payload)
 ```
 
-You do not write the Jinja env yourself; always use `make_env(__file__)`.
+**Three rules to remember:**
+
+1. **Always use `make_env(__file__)`.** Never `Environment(loader=FileSystemLoader(Path(__file__).parent / "templates"))` — that path doesn't exist for uploaded handlers.
+2. **`get_template()` filename must be `f"{FORM_CODE}.html.j2"`** — the portal renames the upload to match `FORM_CODE`. Hard-coding the original upload filename ("frb_fencing.html.j2" etc.) will fail at render time.
+3. **Use `spencer_logo_data_uri()` for the brand logo.** Don't bundle your own copy. Don't try to `_find_asset()` — that pattern only works for built-ins.
 
 ---
 
@@ -545,7 +564,7 @@ from typing import Optional
 from zoneinfo import ZoneInfo
 from sqlalchemy import text
 from sqlalchemy.orm import Session
-from app.templates_userland.runtime import make_env, qr_data_uri
+from app.templates_userland.runtime import make_env, qr_data_uri, spencer_logo_data_uri
 
 DALUX_TEMPLATE_NAME = "Protective Coating Inspection (Complete)"
 FORM_CODE = "CS208"
@@ -600,13 +619,15 @@ def build_payload(db: Session, form_id: str) -> dict:
         "tests": [...],
         "signoffs": [...],
         "photos": [...],
-        "qr_data_uri": qr_data_uri(__file__),
+        "qr_data_uri":   qr_data_uri(__file__),
+        "logo_data_uri": spencer_logo_data_uri(),
         # ... etc
     }
 
 
 def render_html(payload: dict) -> str:
-    template = _env.get_template(f"{FORM_CODE.lower()}.html.j2")
+    # Filename matches FORM_CODE — that's what the portal saved it as
+    template = _env.get_template(f"{FORM_CODE}.html.j2")
     return template.render(**payload)
 
 
@@ -623,16 +644,18 @@ The matching `cs208.html.j2` runs ~520 lines and uses the design system classes 
 
 Before handing files to the portal, verify:
 
-1. **Both files compile.** Open the `.py` in any Python REPL and try to import it manually (you'll need a stub `from app.templates_userland.runtime import make_env, qr_data_uri` in your environment; the portal provides the real one).
-2. **All four constants are at module level** and string-typed. `VALID_FROM` parses with `date.fromisoformat()`.
-3. **`build_payload` and `render_html` are top-level functions**, not nested inside classes or `if __name__ == ...` guards.
-4. **Every `text("...")` query** that joins across `DLX_2_*` ↔ `sheq_sites` has `COLLATE utf8mb4_unicode_ci` on **both sides** of the equality.
-5. **`render_html` uses `_env.get_template("<form_code>.html.j2")`** — the filename matches your `FORM_CODE` lowercased.
-6. **The Jinja template `{% include '_spencer_design_system.css.j2' %}`** at the top of its `<style>` block.
-7. **No new colours.** Only the tokens listed in §6.2.
-8. **No JavaScript** in the `.html.j2`.
-9. **No `print()` calls** at module level (they show up in the server log on every request — use `logging` if you must).
-10. **All photo URLs are data URIs**, not external links — WeasyPrint can fetch external HTTP, but it slows rendering and makes offline-archive PDFs impossible.
+1. **`FORM_CODE`** is `[A-Z0-9_]+` only — no parens, hyphens, or spaces. (See §1 — common Claude trap is `CS175(FRB)` which the loader accepts but breaks downstream.)
+2. **All four required constants** (`DALUX_TEMPLATE_NAME`, `FORM_CODE`, `FORM_DISPLAY`, `VALID_FROM`) are at module level and string-typed. `VALID_FROM` must be a real ISO date (`YYYY-MM-DD`).
+3. **Jinja env uses the runtime helper** — `_env = make_env(__file__)`. **Not** a self-built `Environment(loader=FileSystemLoader(...))`. (The most common upload bug — see §3.)
+4. **`render_html` calls `_env.get_template(f"{FORM_CODE}.html.j2")`** — exact match on FORM_CODE, not the original upload filename. (See §3.)
+5. **Logo + QR via runtime helpers** — `spencer_logo_data_uri()` and `qr_data_uri(__file__)`. Don't bundle your own logo, don't hardcode paths to `static/`.
+6. **`build_payload` and `render_html`** are top-level functions, not nested inside classes or `if __name__ == ...` guards.
+7. **Every `text("...")` query** that joins across `DLX_2_*` ↔ `sheq_sites` has `COLLATE utf8mb4_unicode_ci` on **both sides** of the equality.
+8. **The Jinja template `{% include '_spencer_design_system.css.j2' %}`** at the top of its `<style>` block.
+9. **No new colours.** Only the tokens listed in §6.2.
+10. **No JavaScript** in the `.html.j2`.
+11. **No `print()` calls** at module level (they show up in the server log on every request — use `logging` if you must).
+12. **All photo URLs are data URIs**, not external links — WeasyPrint can fetch external HTTP, but it slows rendering and makes offline-archive PDFs impossible.
 
 If you can run the handler against a real form locally and the PDF renders, you're good. Otherwise: trust the validation gate and read the rejection reason if it comes back.
 
