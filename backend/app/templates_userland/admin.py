@@ -17,8 +17,9 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.database import get_app_db
+from app.database import get_app_db, get_db
 from app.models import TemplateUploadAudit
+from app.notifications.service import bootstrap_template_for_existing_forms
 from app.templates_userland import loader as template_loader
 
 logger = logging.getLogger(__name__)
@@ -103,6 +104,7 @@ async def upload_template(
     template_file: UploadFile = File(...),
     qr_file: Optional[UploadFile] = File(None),
     app_db: Session = Depends(get_app_db),
+    db: Session = Depends(get_db),
 ):
     """Validate, persist, and register a new template version. The .py is
     imported in a temp location first; if validation fails nothing is
@@ -168,6 +170,26 @@ async def upload_template(
         uploader_ip=uploader_ip,
     ))
     app_db.commit()
+
+    # Safety net: silently mark all existing closed forms for this template
+    # as 'bootstrap' in notifications_sent, so the next scheduler run does
+    # not flood Teams with a backlog of historical forms. Idempotent — does
+    # nothing if rows already exist (UNIQUE constraint absorbs duplicates).
+    # Without this, every new template upload was a flood-risk event.
+    try:
+        n = bootstrap_template_for_existing_forms(v.dalux_template_name, db, app_db)
+        if n > 0:
+            logger.info(
+                "auto-bootstrapped %d historical closed form(s) for new template %s (%s)",
+                n, v.form_code, v.dalux_template_name,
+            )
+    except Exception as e:
+        # Don't fail the upload if the bootstrap query fails — the upload
+        # itself is the primary action. Log so it's visible.
+        logger.exception(
+            "auto-bootstrap failed for %s — Teams may flood on next scheduler run: %s",
+            v.form_code, e,
+        )
 
     return _UploadOk(
         form_code=v.form_code,

@@ -237,3 +237,50 @@ def run_once(mdb: Session, adb: Session) -> dict:
         "failed": failed,
         "skipped_no_url": skipped_no_url,
     }
+
+
+def bootstrap_template_for_existing_forms(
+    template_name: str,
+    mdb: Session,
+    adb: Session,
+) -> int:
+    """Mark every existing closed form for the given template_name as
+    `bootstrap` in notifications_sent. Used when a new template is added
+    to the registry — without this, all of that template's already-closed
+    historical forms would fire as candidates on the next scheduler run.
+
+    Idempotent: the UNIQUE(form_id, form_modified_at) constraint silently
+    rejects rows that are already recorded, so re-running this is harmless.
+
+    Returns the number of rows actually inserted.
+    """
+    rows = mdb.execute(text("""
+        SELECT formId, modified
+        FROM DLX_2_forms
+        WHERE template_name = :tn
+          AND status = 'closed'
+          AND (deleted = 0 OR deleted IS NULL)
+          AND modified IS NOT NULL
+    """), {"tn": template_name}).all()
+
+    inserted = 0
+    for form_id, modified in rows:
+        if not modified:
+            continue
+        try:
+            adb.add(NotificationSent(
+                form_id=form_id,
+                form_modified_at=modified,
+                status="bootstrap",
+                template_name=template_name,
+                http_status=None,
+                error_message=None,
+            ))
+            adb.commit()
+            inserted += 1
+        except Exception:
+            # UNIQUE constraint violation = already bootstrapped for this
+            # (form_id, modified) pair. Silently skip; that's the point of
+            # idempotence.
+            adb.rollback()
+    return inserted
