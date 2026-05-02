@@ -1,0 +1,86 @@
+{
+  "type": "AdaptiveCard",
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "version": "1.4",
+  "body": [
+    {
+      "type": "Container",
+      "style": "accent",
+      "bleed": true,
+      "items": [
+        {
+          "type": "TextBlock",
+          "text": "@{triggerBody()?['form_code']} closed \u2014 ready for QA",
+          "weight": "Bolder",
+          "size": "Large",
+          "wrap": true
+        },
+        {
+          "type": "TextBlock",
+          "text": "@{triggerBody()?['template_display_name']}",
+          "isSubtle": true,
+          "spacing": "None",
+          "wrap": true
+        }
+      ]
+    },
+    {
+      "type": "TextBlock",
+      "text": "@{triggerBody()?['site_name']}",
+      "weight": "Bolder",
+      "size": "Medium",
+      "wrap": true,
+      "spacing": "Medium"
+    },
+    {
+      "type": "FactSet",
+      "spacing": "Small",
+      "facts": [
+        {
+          "title": "SOS #",
+          "value": "@{triggerBody()?['sos_number']}"
+        },
+        {
+          "title": "Form No.",
+          "value": "@{triggerBody()?['form_number']}"
+        },
+        {
+          "title": "Raised by",
+          "value": "@{triggerBody()?['creator_name']}"
+        },
+        {
+          "title": "Created",
+          "value": "@{triggerBody()?['created_label']}"
+        },
+        {
+          "title": "Closed",
+          "value": "@{triggerBody()?['closed_label']}"
+        },
+        {
+          "title": "Form ID",
+          "value": "@{triggerBody()?['form_id']}"
+        }
+      ]
+    },
+    {
+      "type": "TextBlock",
+      "text": "Form is closed in Dalux and the PDF is ready in SharePoint.",
+      "wrap": true,
+      "spacing": "Medium",
+      "isSubtle": true
+    }
+  ],
+  "actions": [
+    {
+      "type": "Action.OpenUrl",
+      "title": "Download PDF",
+      "url": "@{triggerBody()?['download_url']}",
+      "style": "positive"
+    },
+    {
+      "type": "Action.OpenUrl",
+      "title": "Open Folder",
+      "url": "@{triggerBody()?['folder_url']}"
+    }
+  ]
+}

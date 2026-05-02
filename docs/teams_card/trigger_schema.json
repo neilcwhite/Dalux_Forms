@@ -1,0 +1,50 @@
+{
+  "type": "object",
+  "properties": {
+    "form_code": {
+      "type": "string"
+    },
+    "form_id": {
+      "type": "string"
+    },
+    "template_name": {
+      "type": "string"
+    },
+    "template_display_name": {
+      "type": "string"
+    },
+    "site_name": {
+      "type": "string"
+    },
+    "sos_number": {
+      "type": "string"
+    },
+    "form_number": {
+      "type": "string"
+    },
+    "created_at": {
+      "type": "string"
+    },
+    "created_label": {
+      "type": "string"
+    },
+    "modified_at": {
+      "type": "string"
+    },
+    "closed_label": {
+      "type": "string"
+    },
+    "creator_name": {
+      "type": "string"
+    },
+    "creator_email": {
+      "type": "string"
+    },
+    "download_url": {
+      "type": "string"
+    },
+    "folder_url": {
+      "type": "string"
+    }
+  }
+}

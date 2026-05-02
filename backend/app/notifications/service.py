@@ -46,6 +46,9 @@ class Candidate:
     modified: datetime
     site_name: str
     sos_number: Optional[str]
+    created: Optional[datetime] = None
+    creator_name: str = ""
+    creator_email: str = ""
 
 
 def find_candidates(mdb: Session, adb: Session) -> list[Candidate]:
@@ -59,14 +62,21 @@ def find_candidates(mdb: Session, adb: Session) -> list[Candidate]:
     binds = {f"t{i}": tn for i, tn in enumerate(template_names)}
 
     rows = mdb.execute(text(f"""
-        SELECT f.formId, f.template_name, f.number, f.status, f.modified,
+        SELECT f.formId, f.template_name, f.number, f.status,
+               f.created, f.modified,
                COALESCE(s.site_name, p.projectName) AS site_name,
-               s.sos_number
+               s.sos_number,
+               u.firstName AS creator_first,
+               u.lastName  AS creator_last,
+               u.email     AS creator_email
         FROM DLX_2_forms f
         LEFT JOIN DLX_2_projects p
           ON f.projectId COLLATE utf8mb4_unicode_ci = p.projectId COLLATE utf8mb4_unicode_ci
         LEFT JOIN sheq_sites s
           ON f.projectId COLLATE utf8mb4_unicode_ci = s.dalux_id COLLATE utf8mb4_unicode_ci
+        LEFT JOIN DLX_2_users u
+          ON f.createdBy_userId COLLATE utf8mb4_unicode_ci = u.userId COLLATE utf8mb4_unicode_ci
+         AND f.projectId COLLATE utf8mb4_unicode_ci = u.projectId COLLATE utf8mb4_unicode_ci
         WHERE f.status = 'closed'
           AND f.template_name IN ({placeholders})
           AND (f.deleted = 0 OR f.deleted IS NULL)
@@ -96,6 +106,9 @@ def find_candidates(mdb: Session, adb: Session) -> list[Candidate]:
             continue
 
         tpl = templates.get(r["template_name"], {})
+        first = (r.get("creator_first") or "").strip()
+        last = (r.get("creator_last") or "").strip()
+        creator_name = " ".join(p.capitalize() for p in f"{first} {last}".split())
         candidates.append(Candidate(
             form_id=fid,
             template_name=r["template_name"],
@@ -106,6 +119,9 @@ def find_candidates(mdb: Session, adb: Session) -> list[Candidate]:
             modified=modified,
             site_name=r["site_name"] or "",
             sos_number=r["sos_number"],
+            created=r.get("created"),
+            creator_name=creator_name,
+            creator_email=r.get("creator_email") or "",
         ))
     return candidates
 
@@ -167,8 +183,14 @@ def build_payload(c: Candidate, sharepoint_url: str) -> dict:
         "site_name": c.site_name,
         "sos_number": c.sos_number or "",
         "form_number": c.form_number or "",
+        "created_at": c.created.isoformat() if c.created else "",
+        "created_label": c.created.strftime("%d %b %Y") if c.created else "",
         "modified_at": c.modified.isoformat() if c.modified else "",
+        "closed_label": c.modified.strftime("%d %b %Y %H:%M") if c.modified else "",
+        "creator_name": c.creator_name or "",
+        "creator_email": c.creator_email or "",
         "download_url": sharepoint_url,
+        "folder_url": settings.SHAREPOINT_FOLDER_VIEW_URL or "",
     }
 
 

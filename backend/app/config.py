@@ -33,6 +33,12 @@ class Settings:
     SHAREPOINT_HOSTNAME = os.getenv("SHAREPOINT_HOSTNAME", "")
     SHAREPOINT_SITE_PATH = os.getenv("SHAREPOINT_SITE_PATH", "")
     SHAREPOINT_FOLDER_PATH = os.getenv("SHAREPOINT_FOLDER_PATH", "")
+    # Human-readable SharePoint URL for the folder view (the
+    # "Forms/AllItems.aspx?..." link a user gets when they navigate to the
+    # folder in a browser). Used as the "Open Folder" button on Teams cards.
+    # Hard to derive programmatically without the doc-library GUID + viewid,
+    # so it's a separate config value — paste once from a browser.
+    SHAREPOINT_FOLDER_VIEW_URL = os.getenv("SHAREPOINT_FOLDER_VIEW_URL", "")
 
     # Bootstrap admin emails — comma-separated. All seeded as 'admin' on
     # first startup if approved_users table is empty. Each gets the password
