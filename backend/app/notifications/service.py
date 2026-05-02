@@ -1,13 +1,15 @@
-"""Teams notifications — candidate detection, dedup, dispatch, recording.
+"""Teams notifications — candidate detection, PDF render, SharePoint upload, Teams card.
 
 The flow: query MariaDB for closed forms in custom-report templates → filter
 against SQLite downloads (modified-since-last-download rule) → drop forms
-already in notifications_sent → POST body to Power Automate → record result.
+already in notifications_sent → render PDF → upload to SharePoint → POST
+body to Power Automate (Teams card links to the SharePoint URL, not back
+to this app) → record result.
 
 Deliberately synchronous; APScheduler handles the timing. No retry queue —
 failures are recorded with status='failed' and eligible to retry on the next
 scheduled run because the dedup only treats status='sent'/'bootstrap' as
-already-handled.
+already-handled. SharePoint's conflictBehavior=replace makes re-upload safe.
 """
 from __future__ import annotations
 import logging
@@ -21,6 +23,8 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models import NotificationSent
+from app.reports.service import generate_report, ReportError
+from app.sharepoint.client import get_client as get_sharepoint_client, SharePointError
 
 logger = logging.getLogger(__name__)
 
@@ -147,10 +151,14 @@ def _notified_pairs(adb: Session, form_ids: list[str]) -> set[tuple[str, datetim
     return out
 
 
-def build_payload(c: Candidate) -> dict:
+def build_payload(c: Candidate, sharepoint_url: str) -> dict:
     """Shape the POST body Power Automate will consume to render the
-    Adaptive Card. Keep keys flat and simple so the flow is easy to parse."""
-    base = settings.APP_PUBLIC_URL.rstrip("/")
+    Adaptive Card. Keep keys flat and simple so the flow is easy to parse.
+
+    `download_url` is the SharePoint webUrl of the rendered PDF — the card's
+    button links straight there, so doc control don't need to reach this
+    app. Key kept as `download_url` so the existing flow doesn't need
+    re-mapping."""
     return {
         "form_code": c.form_code,
         "form_id": c.form_id,
@@ -160,7 +168,7 @@ def build_payload(c: Candidate) -> dict:
         "sos_number": c.sos_number or "",
         "form_number": c.form_number or "",
         "modified_at": c.modified.isoformat() if c.modified else "",
-        "download_url": f"{base}/api/forms/{c.form_id}/download",
+        "download_url": sharepoint_url,
     }
 
 
@@ -185,6 +193,7 @@ def record_notification(
     status: str,
     http_status: Optional[int],
     error_message: Optional[str],
+    sharepoint_url: Optional[str] = None,
 ) -> None:
     """Insert a notifications_sent row. Tolerates UNIQUE conflict (means
     another run already recorded this pair)."""
@@ -195,6 +204,7 @@ def record_notification(
         template_name=candidate.template_name,
         http_status=http_status,
         error_message=error_message,
+        sharepoint_url=sharepoint_url,
     )
     try:
         adb.add(row)
@@ -204,31 +214,110 @@ def record_notification(
         logger.warning("notifications_sent insert failed for %s: %s", candidate.form_id, e)
 
 
+def _render_and_upload(c: Candidate, mdb: Session) -> tuple[Optional[str], Optional[str]]:
+    """Render the closed form's PDF and push it to SharePoint.
+
+    Returns (sharepoint_web_url, error_message). On success error_message is
+    None. On failure web_url is None and error_message describes the step
+    that broke (render vs upload) — that string lands in
+    notifications_sent.error_message so an operator can diagnose without
+    grepping logs.
+    """
+    try:
+        pdf_bytes, filename, _ = generate_report(mdb, c.form_id)
+    except ReportError as e:
+        return None, f"pdf-render: {e}"[:500]
+    except Exception as e:
+        logger.exception("unexpected pdf render error for %s", c.form_id)
+        return None, f"pdf-render-unexpected: {e}"[:500]
+
+    try:
+        sp = get_sharepoint_client()
+        result = sp.upload(filename, pdf_bytes, content_type="application/pdf")
+    except SharePointError as e:
+        return None, f"sharepoint: {e}"[:500]
+    except Exception as e:
+        logger.exception("unexpected sharepoint upload error for %s", c.form_id)
+        return None, f"sharepoint-unexpected: {e}"[:500]
+
+    return result.web_url, None
+
+
 def run_once(mdb: Session, adb: Session) -> dict:
-    """One pass: find candidates, send, record. Returns counts for logging."""
+    """One pass: find candidates, render PDF, upload to SharePoint, send
+    Teams card, record. Returns counts for logging."""
     if not settings.NOTIFY_ENABLED:
         logger.info("notifications disabled (NOTIFY_ENABLED=false), skipping run")
-        return {"enabled": False, "checked": 0, "sent": 0, "failed": 0, "skipped_no_url": 0}
+        return {
+            "enabled": False, "checked": 0, "sent": 0, "failed": 0,
+            "skipped_no_url": 0, "render_failed": 0, "upload_failed": 0,
+        }
 
     candidates = find_candidates(mdb, adb)
     sent = 0
     failed = 0
     skipped_no_url = 0
+    render_failed = 0
+    upload_failed = 0
 
     for c in candidates:
-        payload = build_payload(c)
+        sp_url, render_or_upload_error = _render_and_upload(c, mdb)
+        if render_or_upload_error is not None:
+            # Record as failed; next scheduler run will retry (failed rows
+            # don't block dedup). Don't send a Teams card with no link.
+            record_notification(
+                adb, c,
+                status="failed",
+                http_status=None,
+                error_message=render_or_upload_error,
+                sharepoint_url=None,
+            )
+            if render_or_upload_error.startswith("pdf-render"):
+                render_failed += 1
+            else:
+                upload_failed += 1
+            logger.warning(
+                "notification failed pre-send: %s %s — %s",
+                c.form_code, c.form_id, render_or_upload_error,
+            )
+            continue
+
+        payload = build_payload(c, sharepoint_url=sp_url)
         http_status, error = send_notification(payload)
         if error is None:
-            record_notification(adb, c, status="sent", http_status=http_status, error_message=None)
+            record_notification(
+                adb, c,
+                status="sent",
+                http_status=http_status,
+                error_message=None,
+                sharepoint_url=sp_url,
+            )
             sent += 1
-            logger.info("notification sent: %s %s (http %s)", c.form_code, c.form_id, http_status)
+            logger.info(
+                "notification sent: %s %s (http %s) → %s",
+                c.form_code, c.form_id, http_status, sp_url,
+            )
         elif "not configured" in (error or ""):
+            # File is in SharePoint, just no Power Automate URL set.
+            # Skip recording so a real send retries cleanly once configured.
             skipped_no_url += 1
-            logger.warning("skipping %s %s: %s", c.form_code, c.form_id, error)
+            logger.warning(
+                "skipping Teams send for %s %s (%s); pdf already at %s",
+                c.form_code, c.form_id, error, sp_url,
+            )
         else:
-            record_notification(adb, c, status="failed", http_status=http_status or None, error_message=error)
+            record_notification(
+                adb, c,
+                status="failed",
+                http_status=http_status or None,
+                error_message=error,
+                sharepoint_url=sp_url,
+            )
             failed += 1
-            logger.warning("notification failed: %s %s — %s", c.form_code, c.form_id, error)
+            logger.warning(
+                "notification failed (post-upload): %s %s — %s",
+                c.form_code, c.form_id, error,
+            )
 
     return {
         "enabled": True,
@@ -236,6 +325,8 @@ def run_once(mdb: Session, adb: Session) -> dict:
         "sent": sent,
         "failed": failed,
         "skipped_no_url": skipped_no_url,
+        "render_failed": render_failed,
+        "upload_failed": upload_failed,
     }
 
 

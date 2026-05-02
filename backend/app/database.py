@@ -52,3 +52,17 @@ def get_app_db():
         yield db
     finally:
         db.close()
+
+
+def migrate_app_db() -> None:
+    """Tiny in-place migrations for SQLite. create_all() never ALTERs.
+    Each block is idempotent — checks PRAGMA table_info before adding.
+    Called by FastAPI startup and by the run_now CLI."""
+    with app_engine.begin() as conn:
+        cols = {row[1] for row in conn.exec_driver_sql(
+            "PRAGMA table_info(notifications_sent)"
+        ).fetchall()}
+        if "sharepoint_url" not in cols:
+            conn.exec_driver_sql(
+                "ALTER TABLE notifications_sent ADD COLUMN sharepoint_url VARCHAR(1000)"
+            )

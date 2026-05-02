@@ -11,7 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.database import get_db, get_app_db, app_engine, AppBase
+from app.database import get_db, get_app_db, app_engine, AppBase, migrate_app_db
 from app import models  # noqa: F401
 from app.models import Download, HiddenProject
 from app.reports.service import generate_report, ReportError
@@ -33,6 +33,7 @@ app.include_router(auth_router)
 @app.on_event("startup")
 def startup_init_app_db():
     AppBase.metadata.create_all(bind=app_engine)
+    migrate_app_db()
 
 
 @app.on_event("startup")

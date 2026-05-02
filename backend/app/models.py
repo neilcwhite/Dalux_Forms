@@ -40,6 +40,8 @@ class NotificationSent(AppBase):
     http_status = Column(Integer, nullable=True,
                          comment="HTTP status from Power Automate on send; null for bootstrap")
     error_message = Column(String(500), nullable=True)
+    sharepoint_url = Column(String(1000), nullable=True,
+                            comment="webUrl of the PDF in SharePoint; null for bootstrap or pre-SP rows")
 
     __table_args__ = (
         UniqueConstraint("form_id", "form_modified_at", name="uq_notifications_form_modified"),

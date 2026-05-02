@@ -24,6 +24,16 @@ class Settings:
     # Empty/unset = feature disabled (endpoint returns 503).
     ADMIN_UPLOAD_TOKEN = os.getenv("ADMIN_UPLOAD_TOKEN", "")
 
+    # SharePoint upload (closed-form PDFs land here; Teams card links to file)
+    # Auth via Azure AD app registration (client credentials flow). Reusing
+    # n8n's app reg as a stop-gap — IT to issue a dedicated reg later.
+    SHAREPOINT_TENANT_ID = os.getenv("SHAREPOINT_TENANT_ID", "")
+    SHAREPOINT_CLIENT_ID = os.getenv("SHAREPOINT_CLIENT_ID", "")
+    SHAREPOINT_CLIENT_SECRET = os.getenv("SHAREPOINT_CLIENT_SECRET", "")
+    SHAREPOINT_HOSTNAME = os.getenv("SHAREPOINT_HOSTNAME", "")
+    SHAREPOINT_SITE_PATH = os.getenv("SHAREPOINT_SITE_PATH", "")
+    SHAREPOINT_FOLDER_PATH = os.getenv("SHAREPOINT_FOLDER_PATH", "")
+
     # Bootstrap admin emails — comma-separated. All seeded as 'admin' on
     # first startup if approved_users table is empty. Each gets the password
     # set in INITIAL_ADMIN_PASSWORD; they can change it after first login.
